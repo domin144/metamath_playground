@@ -1,0 +1,34 @@
+cmake_minimum_required( VERSION 2.8 )
+
+project( proof_converter_inference )
+
+set( sources
+  src/main.cc
+  src/Metamath_database.cc
+  src/Metamath_database_read_write.cc
+  src/Tokenizer.cc
+  src/Symbol.cc
+  src/Statement.cc
+)
+
+set( headers
+  src/Metamath_database.h
+  src/Metamath_database_read_write.h
+  src/Tokenizer.h
+  src/Symbol.h
+  src/Statement.h
+)
+
+#include( src )
+
+if( "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang" )
+  set( CMAKE_CXX_FLAGS -std=c++11 )
+elseif( "${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" )
+  set( CMAKE_CXX_FLAGS -std=c++11 )
+elseif( "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel" )
+  # using Intel C++
+elseif( "${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC" )
+  # using Visual Studio C++
+endif()
+
+add_executable( convert ${sources} ${headers} )
