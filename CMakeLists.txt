@@ -9,6 +9,8 @@ set( sources
   src/Tokenizer.cc
   src/Symbol.cc
   src/Statement.cc
+  src/Named.cc
+  src/Expression.cc
 )
 
 set( headers
@@ -17,14 +19,16 @@ set( headers
   src/Tokenizer.h
   src/Symbol.h
   src/Statement.h
+  src/Named.h
+  src/Expression.h
 )
 
 #include( src )
 
 if( "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang" )
-  set( CMAKE_CXX_FLAGS -std=c++11 )
+  set( CMAKE_CXX_FLAGS "-std=c++11 -pedantic -Wall -Werror" )
 elseif( "${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" )
-  set( CMAKE_CXX_FLAGS -std=c++11 )
+  set( CMAKE_CXX_FLAGS "-std=c++11 -pedantic -Wall -Werror" )
 elseif( "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel" )
   # using Intel C++
 elseif( "${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC" )

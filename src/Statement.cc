@@ -1,18 +1,27 @@
 #include "Statement.h"
 
-Statement::Statement() {
-}
-//------------------------------------------------------------------------------
-const std::string &Statement::get_name() const {
-  return m_name;
-}
-//------------------------------------------------------------------------------
-void Statement::push_back( const Symbol &symbol ) {
-  m_content.push_back( &symbol );
-}
-//------------------------------------------------------------------------------
-bool operator<( const Statement &left_statement, const Statement
-  &right_statement )
+Statement::Statement( const std::string &name ) :
+    Named( name )
 {
-  return left_statement.get_name() < right_statement.get_name();
 }
+//------------------------------------------------------------------------------
+void Statement::push_back( const Symbol &symbol )
+{
+    m_content.push_back( &symbol );
+}
+//------------------------------------------------------------------------------
+Axiom::Axiom( const std::string &name ) :
+    Statement( name )
+{ }
+//------------------------------------------------------------------------------
+Theorem::Theorem( const std::string &name ) :
+    Statement( name )
+{ }
+//------------------------------------------------------------------------------
+Assumption::Assumption( const std::string &name ) :
+    Statement( name )
+{ }
+//------------------------------------------------------------------------------
+Variable_assumption::Variable_assumption( const std::string &name ) :
+    Statement( name )
+{ }

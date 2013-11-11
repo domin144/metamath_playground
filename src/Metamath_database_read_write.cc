@@ -7,7 +7,7 @@ void read_axiom( Metamath_database &db, Tokenizer &tokenizer, const std::string
 {
   if( tokenizer.get_token() != "$a" )
     throw( std::runtime_error("axiom does not start with \"$a\"") );
-  Axiom axiom;
+  Axiom axiom( label );
   while( tokenizer.peek() != "$." )
     axiom.push_back( db.get_symbol_by_label( tokenizer.get_token() ) );
   db.add_axiom( axiom );
@@ -50,7 +50,7 @@ void read_variable_assumption( Metamath_database &db, Tokenizer &tokenizer,
   if( tokenizer.get_token() != "$f" )
     throw( std::runtime_error("variable assumption does not start with \"$f\"")
       );
-  Variable_assumption variable_assumption;
+  Variable_assumption variable_assumption( label );
   while( tokenizer.peek() != "$." )
     variable_assumption.push_back( db.get_symbol_by_label( tokenizer.get_token()
       ) );
@@ -63,7 +63,7 @@ void read_assumption( Metamath_database &db, Tokenizer &tokenizer, const
 {
   if( tokenizer.get_token() != "$e" )
     throw( std::runtime_error("assumption does not start with \"$e\"") );
-  Assumption assumption;
+  Assumption assumption( label );
   while( tokenizer.peek() != "$." )
     assumption.push_back( db.get_symbol_by_label( tokenizer.get_token() ) );
   db.add_assumption( assumption );
@@ -75,7 +75,7 @@ void read_theorem( Metamath_database &db, Tokenizer &tokenizer, const
 {
   if( tokenizer.get_token() != "$p" )
     throw( std::runtime_error("theorem does not start with \"$e\"") );
-  Theorem theorem;
+  Theorem theorem( label );
   while( tokenizer.peek() != "$=" )
     theorem.push_back( db.get_symbol_by_label( tokenizer.get_token() ) );
   while( tokenizer.peek() != "$." )

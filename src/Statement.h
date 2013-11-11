@@ -5,30 +5,38 @@
 
 #include "Symbol.h"
 
-class Statement {
+class Statement : public Named
+{
 protected:
-  Statement();
+    Statement( const std::string &name );
 public:
-  const std::string &get_name() const;
-  void push_back( const Symbol &symbol );
+    void push_back( const Symbol &symbol );
 private:
-  std::string m_name;
-  std::vector<const Symbol *> m_content;
+    std::vector<const Symbol *> m_content;
 };
 //------------------------------------------------------------------------------
-class Axiom : public Statement {
+class Axiom : public Statement
+{
+public:
+    Axiom( const std::string &name );
 };
 //------------------------------------------------------------------------------
-class Theorem: public Statement {
+class Theorem: public Statement
+{
+public:
+    Theorem( const std::string &name );
 };
 //------------------------------------------------------------------------------
-class Assumption : public Statement {
+class Assumption : public Statement
+{
+public:
+    Assumption( const std::string &name );
 };
 //------------------------------------------------------------------------------
-class Variable_assumption : public Statement {
+class Variable_assumption : public Statement
+{
+public:
+    Variable_assumption( const std::string &name );
 };
-//------------------------------------------------------------------------------
-bool operator<( const Statement &left_statement, const Statement
-  &right_statement );
 
 #endif // STATEMENT_H

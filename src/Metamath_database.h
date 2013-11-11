@@ -22,15 +22,15 @@ public:
   void add_theorem( const Theorem &theorem );
   const Statement *getStatementByName( const std::string &name );
 private:
-  std::set<Axiom> m_axioms;
-  std::set<Theorem> m_theorems;
-  std::set<Variable> m_variables;
-  std::set<Constant> m_constants;
-  std::set<Assumption> m_assumptions;
-  std::set<Variable_assumption> m_variable_assumptions;
+  std::set<Axiom, Less_by_name> m_axioms;
+  std::set<Theorem, Less_by_name> m_theorems;
+  std::set<Variable, Less_by_name> m_variables;
+  std::set<Constant, Less_by_name> m_constants;
+  std::set<Assumption, Less_by_name> m_assumptions;
+  std::set<Variable_assumption, Less_by_name> m_variable_assumptions;
   std::map<std::string, const Statement *> m_label_to_statement;
   std::map<std::string, const Symbol *> m_label_to_symbol;
-  Metamath_database *const parrent = 0;
+  //Metamath_database *const parrent = 0;
 };
 
 #endif // METAMATH_DATABASE
