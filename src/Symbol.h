@@ -7,19 +7,19 @@
 class Symbol : public Named
 {
 protected:
-  Symbol( const std::string &name );
+    Symbol( const std::string &name );
 };
 //------------------------------------------------------------------------------
 class Variable : public Symbol
 {
 public:
-  Variable( const std::string &name );
+    Variable( const std::string &name );
 };
 //------------------------------------------------------------------------------
 class Constant : public Symbol
 {
 public:
-  Constant( const std::string &name );
+    Constant( const std::string &name );
 };
 
 #endif // SYMBOL_H

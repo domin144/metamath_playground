@@ -10,24 +10,33 @@
 
 int main( int argc, char *argv[] ) try
 {
-  if( argc != 3 )
-    throw( std::runtime_error("usage: convert database.mm proof_name") );
-  const std::string db_file_name( argv[1] );
-  const std::string proof_name( argv[2] );
+    if( argc != 4 )
+        throw( std::runtime_error("usage: convert database.mm proof_name "
+            "output_database.mm") );
+    const std::string db_file_name( argv[1] );
+    const std::string proof_name( argv[2] );
+    const std::string output_db_file_name( argv[3] );
 
-  std::ifstream db_file;
-  db_file.exceptions( std::ios_base::badbit | std::ios_base::failbit |
-    std::ios_base::eofbit );
-  db_file.open( db_file_name );
-  Tokenizer tokenizer( db_file );
-  Metamath_database db;
-  read_database_from_file( db, tokenizer );
+    std::ifstream db_file;
+    db_file.exceptions( std::ios_base::badbit | std::ios_base::failbit |
+                        std::ios_base::eofbit );
+    db_file.open( db_file_name );
+    Tokenizer tokenizer( db_file );
+    Metamath_database db;
+    read_database_from_file( db, tokenizer );
 
-  //Proof converted_proof = convert_proof_inference( db, proof_name );
+    std::ofstream output_db_file( output_db_file_name );
+    write_database_to_file( db, output_db_file );
 
-  return 0;
-} catch( std::exception &e ) {
-  std::cerr << "std::exception caught: " << e.what() << '\n';
-} catch( ... ) {
-  std::cerr << "unknown exception caught";
+    //Proof converted_proof = convert_proof_inference( db, proof_name );
+
+    return 0;
+}
+catch( std::exception &e )
+{
+    std::cerr << "std::exception caught: " << e.what() << '\n';
+}
+catch( ... )
+{
+    std::cerr << "unknown exception caught";
 }

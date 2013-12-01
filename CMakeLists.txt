@@ -3,36 +3,36 @@ cmake_minimum_required( VERSION 2.8 )
 project( proof_converter_inference )
 
 set( sources
-  src/main.cc
-  src/Metamath_database.cc
-  src/Metamath_database_read_write.cc
-  src/Tokenizer.cc
-  src/Symbol.cc
-  src/Statement.cc
-  src/Named.cc
-  src/Expression.cc
+    src/main.cc
+    src/Metamath_database.cc
+    src/Metamath_database_read_write.cc
+    src/Tokenizer.cc
+    src/Symbol.cc
+    src/Statement.cc
+    src/Named.cc
+    src/Scope.cc
 )
 
 set( headers
-  src/Metamath_database.h
-  src/Metamath_database_read_write.h
-  src/Tokenizer.h
-  src/Symbol.h
-  src/Statement.h
-  src/Named.h
-  src/Expression.h
+    src/Metamath_database.h
+    src/Metamath_database_read_write.h
+    src/Tokenizer.h
+    src/Symbol.h
+    src/Statement.h
+    src/Named.h
+    src/Scope.h
 )
 
 #include( src )
 
 if( "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang" )
-  set( CMAKE_CXX_FLAGS "-std=c++11 -pedantic -Wall -Werror" )
+    set( CMAKE_CXX_FLAGS "-std=c++11 -pedantic -Wall -Werror" )
 elseif( "${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" )
-  set( CMAKE_CXX_FLAGS "-std=c++11 -pedantic -Wall -Werror" )
+    set( CMAKE_CXX_FLAGS "-std=c++11 -pedantic -Wall -Werror" )
 elseif( "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel" )
-  # using Intel C++
+    # using Intel C++
 elseif( "${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC" )
-  # using Visual Studio C++
+    # using Visual Studio C++
 endif()
 
 add_executable( convert ${sources} ${headers} )
