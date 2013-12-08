@@ -26,7 +26,7 @@ void Statement::set_next( Statement *next )
     m_next = next;
 }
 //------------------------------------------------------------------------------
-std::vector<Symbol *> &Statement::get_expression()
+Expression &Expression_holder::get_expression()
 {
     return m_expression;
 }
@@ -50,11 +50,11 @@ Variable_declaration::~Variable_declaration()
 }
 //------------------------------------------------------------------------------
 Axiom::Axiom( const std::string &label ) :
-    Typed_statement( label )
+    Named_statement( label )
 { }
 //------------------------------------------------------------------------------
 Theorem::Theorem( const std::string &label ) :
-    Typed_statement( label )
+    Named_statement( label )
 { }
 //------------------------------------------------------------------------------
 std::vector<Named_statement *> &Theorem::get_proof()
@@ -63,11 +63,11 @@ std::vector<Named_statement *> &Theorem::get_proof()
 }
 //------------------------------------------------------------------------------
 Essential_hypothesis::Essential_hypothesis( const std::string &label ) :
-    Typed_statement( label )
+    Named_statement( label )
 { }
 //------------------------------------------------------------------------------
 Floating_hypothesis::Floating_hypothesis( const std::string &label ) :
-    Typed_statement( label )
+    Named_statement( label )
 { }
 //------------------------------------------------------------------------------
 Disjoint_variable_restriction::Disjoint_variable_restriction()

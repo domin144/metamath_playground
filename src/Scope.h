@@ -5,7 +5,7 @@
 #include <map>
 
 class Scoping_statement :
-    public Typed_statement<Statement::Type::scoping_statement, Statement>
+    public Statement
 {
 public:
     Scoping_statement( Scoping_statement *parrent=0 );
@@ -16,6 +16,10 @@ public:
     void add_statement( Statement *statement );
     Scoping_statement *get_parrent();
     Statement *get_first();
+    void welcome( Statement_visitor &visitor ) override
+    {
+        visitor( this );
+    }
 private:
     Scoping_statement *m_parrent = 0;
     Statement *m_first = 0;

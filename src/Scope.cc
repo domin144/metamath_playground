@@ -65,6 +65,8 @@ Scoping_statement *get_top( Scoping_statement *scope )
 }
 }
 //------------------------------------------------------------------------------
+
+//------------------------------------------------------------------------------
 void Scoping_statement::add_statement( Statement *statement )
 {
     if( m_first && m_last )
@@ -77,34 +79,55 @@ void Scoping_statement::add_statement( Statement *statement )
     {
         m_first = m_last = statement;
     }
-    switch( statement->get_type() )
+
+    class Name_registrator : public Statement_visitor
     {
-    case Statement::Type::axiom:
-    case Statement::Type::theorem:
+    public:
+        Name_registrator( Scoping_statement &scope ) :
+            m_scope( scope )
+        { }
+        void operator()( Scoping_statement * ) override
+        { }
+        void operator()( Constant_declaration *declaration ) override
         {
-            auto named_statement = static_cast<Named_statement *>( statement );
-            get_top( this )->m_label_to_statement[named_statement->get_name()] =
-                named_statement;
+            for( auto symbol : declaration->get_expression() )
+            {
+                m_scope.m_label_to_symbol[symbol->get_name()] = symbol;
+            }
         }
-        break;
-    case Statement::Type::constant_declaration:
-    case Statement::Type::variable_declaration:
-        for( auto symbol : statement->get_expression() )
+        void operator()( Variable_declaration *declaration ) override
         {
-            m_label_to_symbol[symbol->get_name()] = symbol;
+            for( auto symbol : declaration->get_expression() )
+            {
+                m_scope.m_label_to_symbol[symbol->get_name()] = symbol;
+            }
         }
-        break;
-    case Statement::Type::floating_hypothesis:
-    case Statement::Type::essential_hypothesis:
+        void operator()( Axiom *axiom ) override
         {
-            auto named_statement = static_cast<Named_statement *>( statement );
-            m_label_to_statement[named_statement->get_name()] =
-                named_statement;
+            get_top( &m_scope )->m_label_to_statement[axiom->get_name()] =
+                axiom;
         }
-        break;
-    default:
-        ;
-    }
+        void operator()( Theorem *theorem ) override
+        {
+            get_top( &m_scope )->m_label_to_statement[theorem->get_name()] =
+                theorem;
+        }
+        void operator()( Essential_hypothesis *hypothesis ) override
+        {
+            m_scope.m_label_to_statement[hypothesis->get_name()] = hypothesis;
+        }
+        void operator()( Floating_hypothesis *hypothesis ) override
+        {
+            m_scope.m_label_to_statement[hypothesis->get_name()] = hypothesis;
+        }
+        void operator()( Disjoint_variable_restriction * ) override
+        { }
+    private:
+        Scoping_statement &m_scope;
+    };
+
+    Name_registrator registrator( *this );
+    statement->welcome( registrator );
 }
 //------------------------------------------------------------------------------
 Scoping_statement *Scoping_statement::get_parrent()

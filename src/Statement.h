@@ -6,114 +6,149 @@
 
 #include "Symbol.h"
 
+class Scoping_statement;
+class Constant_declaration;
+class Variable_declaration;
+class Axiom;
+class Theorem;
+class Essential_hypothesis;
+class Floating_hypothesis;
+class Disjoint_variable_restriction;
+//------------------------------------------------------------------------------
+class Statement_visitor
+{
+public:
+    virtual void operator()( Scoping_statement * ) = 0;
+    virtual void operator()( Constant_declaration * ) = 0;
+    virtual void operator()( Variable_declaration * ) = 0;
+    virtual void operator()( Axiom * ) = 0;
+    virtual void operator()( Theorem * ) = 0;
+    virtual void operator()( Essential_hypothesis * ) = 0;
+    virtual void operator()( Floating_hypothesis * ) = 0;
+    virtual void operator()( Disjoint_variable_restriction * ) = 0;
+};
+//------------------------------------------------------------------------------
 class Statement
 {
 protected:
     Statement();
 public:
     virtual ~Statement();
-    enum class Type
-    {
-        constant_declaration,
-        variable_declaration,
-        axiom,
-        theorem,
-        essential_hypothesis,
-        floating_hypothesis,
-        disjoint_variable_restriction,
-        scoping_statement
-    };
-    virtual Type get_type() const = 0;
     Statement *get_previous();
     Statement *get_next();
     void set_previous( Statement *previous );
     void set_next( Statement *next );
-    std::vector<Symbol *> &get_expression();
+    virtual void welcome( Statement_visitor &visitor ) = 0;
 private:
-    std::vector<Symbol *> m_expression;
     Statement *m_previous = 0;
     Statement *m_next = 0;
 };
 //------------------------------------------------------------------------------
 class Named_statement : public Statement, public Named
 {
-public:
+protected:
     Named_statement( const std::string &label ):
         Named( label )
     { }
 };
 //------------------------------------------------------------------------------
-template<Statement::Type type, typename TBase_type>
-class Typed_statement : public TBase_type
+typedef std::vector<Symbol *> Expression;
+//------------------------------------------------------------------------------
+class Expression_holder
 {
 public:
-    typedef TBase_type Base_type;
-    Typed_statement()
-    { }
-    Typed_statement( const std::string &label ) :
-        TBase_type( label )
-    { }
-    typename TBase_type::Type get_type() const
-    {
-        return type;
-    }
+    Expression &get_expression();
+private:
+    Expression m_expression;
 };
 //------------------------------------------------------------------------------
 class Constant_declaration :
-    public Typed_statement<Statement::Type::constant_declaration, Statement>
+    public Statement,
+    public Expression_holder
 {
 public:
     Constant_declaration();
     ~Constant_declaration();
+    void welcome( Statement_visitor &visitor ) override
+    {
+        visitor( this );
+    }
 };
 //------------------------------------------------------------------------------
 class Variable_declaration :
-    public Typed_statement<Statement::Type::variable_declaration, Statement>
+    public Statement,
+    public Expression_holder
 {
 public:
     Variable_declaration();
     ~Variable_declaration();
+    void welcome( Statement_visitor &visitor ) override
+    {
+        visitor( this );
+    }
 };
 //------------------------------------------------------------------------------
 class Axiom :
-    public Typed_statement<Statement::Type::axiom, Named_statement>
+    public Named_statement,
+    public Expression_holder
 {
 public:
     Axiom( const std::string &label );
+    void welcome( Statement_visitor &visitor ) override
+    {
+        visitor( this );
+    }
 };
 //------------------------------------------------------------------------------
 class Theorem :
-    public Typed_statement<Statement::Type::theorem, Named_statement>
+    public Named_statement,
+    public Expression_holder
 {
 public:
     Theorem( const std::string &label );
+    void welcome( Statement_visitor &visitor ) override
+    {
+        visitor( this );
+    }
     std::vector<Named_statement *> &get_proof();
 private:
     std::vector<Named_statement *> m_proof;
 };
 //------------------------------------------------------------------------------
 class Essential_hypothesis :
-    public Typed_statement<Statement::Type::essential_hypothesis,
-        Named_statement>
+    public Named_statement,
+    public Expression_holder
 {
 public:
     Essential_hypothesis( const std::string &label );
+    void welcome( Statement_visitor &visitor ) override
+    {
+        visitor( this );
+    }
 };
 //------------------------------------------------------------------------------
 class Floating_hypothesis :
-    public Typed_statement<Statement::Type::floating_hypothesis,
-        Named_statement>
+    public Named_statement,
+    public Expression_holder
 {
 public:
     Floating_hypothesis( const std::string &label );
+    void welcome( Statement_visitor &visitor ) override
+    {
+        visitor( this );
+    }
 };
 //------------------------------------------------------------------------------
 class Disjoint_variable_restriction :
-    public Typed_statement<Statement::Type::disjoint_variable_restriction,
-        Statement>
+    public Statement,
+    public Expression_holder
 {
 public:
     Disjoint_variable_restriction();
+    void welcome( Statement_visitor &visitor ) override
+    {
+        visitor( this );
+    }
 };
 
 #endif // STATEMENT_H

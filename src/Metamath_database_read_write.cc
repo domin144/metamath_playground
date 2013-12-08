@@ -2,6 +2,16 @@
 
 #include "Metamath_database_read_write.h"
 
+void read_expression( Expression &expression, Tokenizer &tokenizer,
+    const std::string &terminating_token="$." )
+{
+    while( tokenizer.peek() != terminating_token )
+    {
+        auto variable = new Variable( tokenizer.get_token() );
+        expression.push_back( variable );
+    }
+}
+//------------------------------------------------------------------------------
 void read_statement( Scoping_statement *scope, Tokenizer &tokenizer );
 //------------------------------------------------------------------------------
 void read_scope( Scoping_statement *scope, Tokenizer &tokenizer,
@@ -24,12 +34,7 @@ void read_variables( Scoping_statement *scope, Tokenizer &tokenizer, const
         throw( std::runtime_error("variables do not start with \"$v\"") );
 
     auto declaration = new Variable_declaration();
-    auto &expression = declaration->get_expression();
-    while( tokenizer.peek() != "$." )
-    {
-        auto variable = new Variable( tokenizer.get_token() );
-        expression.push_back( variable );
-    }
+    read_expression( declaration->get_expression(), tokenizer );
     scope->add_statement( declaration );
     tokenizer.get_token(); // consume "$."
 }
@@ -41,12 +46,7 @@ void read_constants( Scoping_statement *scope, Tokenizer &tokenizer, const
         throw( std::runtime_error("constants do not start with \"$c\"") );
 
     auto declaration = new Constant_declaration();
-    auto &expression = declaration->get_expression();
-    while( tokenizer.peek() != "$." )
-    {
-        auto constant = new Constant( tokenizer.get_token() );
-        expression.push_back( constant );
-    }
+    read_expression( declaration->get_expression(), tokenizer );
     scope->add_statement( declaration );
     tokenizer.get_token(); // consume "$."
 }
@@ -59,12 +59,7 @@ void read_floating_hypothesis( Scoping_statement *scope, Tokenizer &tokenizer,
             "\"$f\"") );
 
     auto hypothesis = new Floating_hypothesis( label );
-    auto &expression = hypothesis->get_expression();
-    while( tokenizer.peek() != "$." )
-    {
-        auto symbol = scope->get_symbol_by_label( tokenizer.get_token() );
-        expression.push_back( symbol );
-    }
+    read_expression( hypothesis->get_expression(), tokenizer );
     scope->add_statement( hypothesis );
     tokenizer.get_token(); // consume "$."
 }
@@ -76,12 +71,7 @@ void read_essential_hypothesis( Scoping_statement *scope, Tokenizer &tokenizer, 
         throw( std::runtime_error("assumption does not start with \"$e\"") );
 
     auto hypothesis = new Essential_hypothesis( label );
-    auto &expression = hypothesis->get_expression();
-    while( tokenizer.peek() != "$." )
-    {
-        auto symbol = scope->get_symbol_by_label( tokenizer.get_token() );
-        expression.push_back( symbol );
-    }
+    read_expression( hypothesis->get_expression(), tokenizer );
     scope->add_statement( hypothesis );
     tokenizer.get_token(); // consume "$."
 }
@@ -93,12 +83,7 @@ void read_axiom( Scoping_statement *scope, Tokenizer &tokenizer,
         throw( std::runtime_error("axiom does not start with \"$a\"") );
 
     auto axiom = new Axiom( label );
-    auto &expression = axiom->get_expression();
-    while( tokenizer.peek() != "$." )
-    {
-        auto symbol = scope->get_symbol_by_label( tokenizer.get_token() );
-        expression.push_back( symbol );
-    }
+    read_expression( axiom->get_expression(), tokenizer );
     scope->add_statement( axiom );
     tokenizer.get_token(); // consume "$."
 }
@@ -110,12 +95,7 @@ void read_theorem( Scoping_statement *scope, Tokenizer &tokenizer, const
         throw( std::runtime_error("theorem does not start with \"$e\"") );
 
     auto theorem = new Theorem( label );
-    auto &expression = theorem->get_expression();
-    while( tokenizer.peek() != "$=" )
-    {
-        auto symbol = scope->get_symbol_by_label( tokenizer.get_token() );
-        expression.push_back( symbol );
-    }
+    read_expression( theorem->get_expression(), tokenizer, "$=" );
     tokenizer.get_token(); // consume "$="
     while( tokenizer.peek() != "$." )
     {
@@ -134,12 +114,7 @@ void read_disjoint_variable_restriction( Scoping_statement *scope,
             " with \"$v\"") );
 
     auto restriction = new Disjoint_variable_restriction();
-    auto &expression = restriction->get_expression();
-    while( tokenizer.peek() != "$." )
-    {
-        auto variable = new Variable( tokenizer.get_token() );
-        expression.push_back( variable );
-    }
+    read_expression( restriction->get_expression(), tokenizer );
     scope->add_statement( restriction );
     tokenizer.get_token(); // consume "$."
 }
@@ -218,78 +193,96 @@ void write_expression_to_file( const std::vector<Symbol *> &expression,
         output_stream << symbol->get_name() << ' ';
 }
 //------------------------------------------------------------------------------
-void write_statement_to_file( Scoping_statement *scope, Statement *statement,
-    std::ostream &output_stream )
+class Statement_writer : public Statement_visitor
 {
-    switch( statement->get_type() )
+public:
+    Statement_writer( Scoping_statement *scope, std::ostream &output_stream );
+    void operator()( Scoping_statement * ) override;
+    void operator()( Constant_declaration * ) override;
+    void operator()( Variable_declaration * ) override;
+    void operator()( Axiom * ) override;
+    void operator()( Theorem * ) override;
+    void operator()( Essential_hypothesis * ) override;
+    void operator()( Floating_hypothesis * ) override;
+    void operator()( Disjoint_variable_restriction * ) override;
+private:
+    Scoping_statement *m_scope;
+    std::ostream &m_output_stream;
+};
+//------------------------------------------------------------------------------
+Statement_writer::Statement_writer( Scoping_statement *scope,
+    std::ostream &output_stream ) :
+    m_scope( scope ),
+    m_output_stream( output_stream )
+{ }
+//------------------------------------------------------------------------------
+void Statement_writer::operator()( Scoping_statement *inner_scope )
+{
+    m_output_stream << "${\n";
     {
-    case Statement::Type::axiom:
-        output_stream <<
-            static_cast<Named_statement *>( statement )->get_name() << ' ';
-        output_stream << "$a ";
-        write_expression_to_file( statement->get_expression(), output_stream );
-        output_stream << "$.\n";
-        break;
-    case Statement::Type::theorem:
-        output_stream <<
-            static_cast<Named_statement *>( statement )->get_name() << ' ';
-        output_stream << "$p ";
-        write_expression_to_file( statement->get_expression(), output_stream );
-        output_stream << "$= ";
-        for( auto proof_step :
-            static_cast<Theorem *>( statement )->get_proof() )
+        auto scoped_statement = inner_scope->get_first();
+        while( scoped_statement )
         {
-            output_stream << proof_step->get_name() << ' ';
+            Statement_writer writer( inner_scope, m_output_stream );
+            scoped_statement->welcome( writer );
+            scoped_statement = scoped_statement->get_next();
         }
-        output_stream << "$.\n";
-        break;
-    case Statement::Type::constant_declaration:
-        output_stream << "$c ";
-        write_expression_to_file( statement->get_expression(), output_stream );
-        output_stream << "$.\n";
-        break;
-    case Statement::Type::variable_declaration:
-        output_stream << "$v ";
-        write_expression_to_file( statement->get_expression(), output_stream );
-        output_stream << "$.\n";
-        break;
-    case Statement::Type::floating_hypothesis:
-        output_stream <<
-            static_cast<Named_statement *>( statement )->get_name() << ' ';
-        output_stream << "$f ";
-        write_expression_to_file( statement->get_expression(), output_stream );
-        output_stream << "$.\n";
-        break;
-    case Statement::Type::essential_hypothesis:
-        output_stream <<
-            static_cast<Named_statement *>( statement )->get_name() << ' ';
-        output_stream << "$e ";
-        write_expression_to_file( statement->get_expression(), output_stream );
-        output_stream << "$.\n";
-        break;
-    case Statement::Type::disjoint_variable_restriction:
-        output_stream << "$d ";
-        write_expression_to_file( statement->get_expression(), output_stream );
-        output_stream << "$.\n";
-        break;
-    case Statement::Type::scoping_statement:
-        output_stream << "${\n";
-        {
-            auto inner_scope = static_cast<Scoping_statement *>( statement );
-            auto scoped_statement =
-                inner_scope->get_first();
-            while( scoped_statement )
-            {
-                write_statement_to_file( inner_scope, scoped_statement,
-                    output_stream );
-                scoped_statement = scoped_statement->get_next();
-            }
-        }
-        output_stream << "$}\n";
-        break;
-    default:
-        throw( std::runtime_error( "invalid statement type" ) );
     }
+    m_output_stream << "$}\n";
+}
+//------------------------------------------------------------------------------
+void Statement_writer::operator()( Constant_declaration *declaration )
+{
+    m_output_stream << "$c ";
+    write_expression_to_file( declaration->get_expression(), m_output_stream );
+    m_output_stream << "$.\n";
+}
+//------------------------------------------------------------------------------
+void Statement_writer::operator()( Variable_declaration *declaration )
+{
+    m_output_stream << "$v ";
+    write_expression_to_file( declaration->get_expression(), m_output_stream );
+    m_output_stream << "$.\n";
+}
+//------------------------------------------------------------------------------
+void Statement_writer::operator()( Axiom *axiom )
+{
+    m_output_stream << axiom->get_name() << " $a ";
+    write_expression_to_file( axiom->get_expression(), m_output_stream );
+    m_output_stream << "$.\n";
+}
+//------------------------------------------------------------------------------
+void Statement_writer::operator()( Theorem *theorem )
+{
+    m_output_stream << theorem->get_name() << " $p ";
+    write_expression_to_file( theorem->get_expression(), m_output_stream );
+    m_output_stream << "$= ";
+    for( auto proof_step : theorem->get_proof() )
+    {
+        m_output_stream << proof_step->get_name() << ' ';
+    }
+    m_output_stream << "$.\n";
+}
+//------------------------------------------------------------------------------
+void Statement_writer::operator()( Floating_hypothesis *hypothesis )
+{
+    m_output_stream << hypothesis->get_name() << " $f ";
+    write_expression_to_file( hypothesis->get_expression(), m_output_stream );
+    m_output_stream << "$.\n";
+}
+//------------------------------------------------------------------------------
+void Statement_writer::operator()( Essential_hypothesis *hypothesis )
+{
+    m_output_stream << hypothesis->get_name() << " $e ";
+    write_expression_to_file( hypothesis->get_expression(), m_output_stream );
+    m_output_stream << "$.\n";
+}
+//------------------------------------------------------------------------------
+void Statement_writer::operator()( Disjoint_variable_restriction *restriction )
+{
+    m_output_stream << "$d ";
+    write_expression_to_file( restriction->get_expression(), m_output_stream );
+    m_output_stream << "$.\n";
 }
 //------------------------------------------------------------------------------
 void write_database_to_file( Metamath_database &db, std::ostream
@@ -299,8 +292,8 @@ void write_database_to_file( Metamath_database &db, std::ostream
     scoped_statement = scoped_statement->get_next(); // skip invalid axiom
     while( scoped_statement )
     {
-        write_statement_to_file( db.get_top_scope(), scoped_statement,
-            output_stream );
+        Statement_writer writer( db.get_top_scope(), output_stream );
+        scoped_statement->welcome( writer );
         scoped_statement = scoped_statement->get_next();
     }
 }
