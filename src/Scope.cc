@@ -20,7 +20,7 @@ bool Scoping_statement::is_top() const
     return !m_parrent;
 }
 //------------------------------------------------------------------------------
-Symbol *Scoping_statement::get_symbol_by_label( const std::string &label)
+const Symbol *Scoping_statement::get_symbol_by_label( const std::string &label)
 {
     auto i = m_label_to_symbol.find( label );
     if( i!=m_label_to_symbol.end() )
@@ -37,7 +37,7 @@ Symbol *Scoping_statement::get_symbol_by_label( const std::string &label)
     }
 }
 //------------------------------------------------------------------------------
-Named_statement *Scoping_statement::get_statement_by_label(
+const Named_statement *Scoping_statement::get_statement_by_label(
     const std::string &label )
 {
     auto i = m_label_to_statement.find( label );
@@ -64,8 +64,6 @@ Scoping_statement *get_top( Scoping_statement *scope )
     return scope;
 }
 }
-//------------------------------------------------------------------------------
-
 //------------------------------------------------------------------------------
 void Scoping_statement::add_statement( Statement *statement )
 {
@@ -127,7 +125,7 @@ void Scoping_statement::add_statement( Statement *statement )
     };
 
     Name_registrator registrator( *this );
-    statement->welcome( registrator );
+    statement->accept( registrator );
 }
 //------------------------------------------------------------------------------
 Scoping_statement *Scoping_statement::get_parrent()
@@ -136,6 +134,11 @@ Scoping_statement *Scoping_statement::get_parrent()
 }
 //------------------------------------------------------------------------------
 Statement *Scoping_statement::get_first()
+{
+    return m_first;
+}
+//------------------------------------------------------------------------------
+const Statement *Scoping_statement::get_first() const
 {
     return m_first;
 }

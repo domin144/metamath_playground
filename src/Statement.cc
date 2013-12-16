@@ -16,6 +16,16 @@ Statement *Statement::get_next()
     return m_next;
 }
 //------------------------------------------------------------------------------
+const Statement *Statement::get_previous() const
+{
+    return m_previous;
+}
+//------------------------------------------------------------------------------
+const Statement *Statement::get_next() const
+{
+    return m_next;
+}
+//------------------------------------------------------------------------------
 void Statement::set_previous( Statement *previous )
 {
     m_previous = previous;
@@ -27,6 +37,11 @@ void Statement::set_next( Statement *next )
 }
 //------------------------------------------------------------------------------
 Expression &Expression_holder::get_expression()
+{
+    return m_expression;
+}
+//------------------------------------------------------------------------------
+const Expression &Expression_holder::get_expression() const
 {
     return m_expression;
 }
@@ -50,14 +65,19 @@ Variable_declaration::~Variable_declaration()
 }
 //------------------------------------------------------------------------------
 Axiom::Axiom( const std::string &label ) :
-    Named_statement( label )
+    Assertion( label )
 { }
 //------------------------------------------------------------------------------
 Theorem::Theorem( const std::string &label ) :
-    Named_statement( label )
+    Assertion( label )
 { }
 //------------------------------------------------------------------------------
-std::vector<Named_statement *> &Theorem::get_proof()
+Proof &Theorem::get_proof()
+{
+    return m_proof;
+}
+//------------------------------------------------------------------------------
+const Proof &Theorem::get_proof() const
 {
     return m_proof;
 }

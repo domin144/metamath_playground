@@ -28,6 +28,19 @@ public:
     virtual void operator()( Disjoint_variable_restriction * ) = 0;
 };
 //------------------------------------------------------------------------------
+class Const_statement_visitor
+{
+public:
+    virtual void operator()( const Scoping_statement * ) = 0;
+    virtual void operator()( const Constant_declaration * ) = 0;
+    virtual void operator()( const Variable_declaration * ) = 0;
+    virtual void operator()( const Axiom * ) = 0;
+    virtual void operator()( const Theorem * ) = 0;
+    virtual void operator()( const Essential_hypothesis * ) = 0;
+    virtual void operator()( const Floating_hypothesis * ) = 0;
+    virtual void operator()( const Disjoint_variable_restriction * ) = 0;
+};
+//------------------------------------------------------------------------------
 class Statement
 {
 protected:
@@ -36,9 +49,12 @@ public:
     virtual ~Statement();
     Statement *get_previous();
     Statement *get_next();
+    const Statement *get_previous() const;
+    const Statement *get_next() const;
     void set_previous( Statement *previous );
     void set_next( Statement *next );
-    virtual void welcome( Statement_visitor &visitor ) = 0;
+    virtual void accept( Statement_visitor &visitor ) = 0;
+    virtual void accept( Const_statement_visitor &visitor ) const = 0;
 private:
     Statement *m_previous = 0;
     Statement *m_next = 0;
@@ -52,12 +68,13 @@ protected:
     { }
 };
 //------------------------------------------------------------------------------
-typedef std::vector<Symbol *> Expression;
+typedef std::vector<const Symbol *> Expression;
 //------------------------------------------------------------------------------
 class Expression_holder
 {
 public:
     Expression &get_expression();
+    const Expression &get_expression() const;
 private:
     Expression m_expression;
 };
@@ -69,7 +86,11 @@ class Constant_declaration :
 public:
     Constant_declaration();
     ~Constant_declaration();
-    void welcome( Statement_visitor &visitor ) override
+    void accept( Statement_visitor &visitor ) override
+    {
+        visitor( this );
+    }
+    void accept( Const_statement_visitor &visitor ) const override
     {
         visitor( this );
     }
@@ -82,37 +103,60 @@ class Variable_declaration :
 public:
     Variable_declaration();
     ~Variable_declaration();
-    void welcome( Statement_visitor &visitor ) override
+    void accept( Statement_visitor &visitor ) override
     {
         visitor( this );
     }
+    void accept( Const_statement_visitor &visitor ) const override
+    {
+        visitor( this );
+    }
+};
+//------------------------------------------------------------------------------
+class Assertion :
+    public Named_statement,
+    public Expression_holder
+{
+public:
+    Assertion( const std::string &label ) :
+        Named_statement( label )
+    { }
 };
 //------------------------------------------------------------------------------
 class Axiom :
-    public Named_statement,
-    public Expression_holder
+    public Assertion
 {
 public:
     Axiom( const std::string &label );
-    void welcome( Statement_visitor &visitor ) override
+    void accept( Statement_visitor &visitor ) override
+    {
+        visitor( this );
+    }
+    void accept( Const_statement_visitor &visitor ) const override
     {
         visitor( this );
     }
 };
 //------------------------------------------------------------------------------
+typedef std::vector<const Named_statement *> Proof;
+//------------------------------------------------------------------------------
 class Theorem :
-    public Named_statement,
-    public Expression_holder
+    public Assertion
 {
 public:
     Theorem( const std::string &label );
-    void welcome( Statement_visitor &visitor ) override
+    void accept( Statement_visitor &visitor ) override
     {
         visitor( this );
     }
-    std::vector<Named_statement *> &get_proof();
+    void accept( Const_statement_visitor &visitor ) const override
+    {
+        visitor( this );
+    }
+    Proof &get_proof();
+    const Proof &get_proof() const;
 private:
-    std::vector<Named_statement *> m_proof;
+    Proof m_proof;
 };
 //------------------------------------------------------------------------------
 class Essential_hypothesis :
@@ -121,7 +165,11 @@ class Essential_hypothesis :
 {
 public:
     Essential_hypothesis( const std::string &label );
-    void welcome( Statement_visitor &visitor ) override
+    void accept( Statement_visitor &visitor ) override
+    {
+        visitor( this );
+    }
+    void accept( Const_statement_visitor &visitor ) const override
     {
         visitor( this );
     }
@@ -133,7 +181,11 @@ class Floating_hypothesis :
 {
 public:
     Floating_hypothesis( const std::string &label );
-    void welcome( Statement_visitor &visitor ) override
+    void accept( Statement_visitor &visitor ) override
+    {
+        visitor( this );
+    }
+    void accept( Const_statement_visitor &visitor ) const override
     {
         visitor( this );
     }
@@ -145,7 +197,11 @@ class Disjoint_variable_restriction :
 {
 public:
     Disjoint_variable_restriction();
-    void welcome( Statement_visitor &visitor ) override
+    void accept( Statement_visitor &visitor ) override
+    {
+        visitor( this );
+    }
+    void accept( Const_statement_visitor &visitor ) const override
     {
         visitor( this );
     }

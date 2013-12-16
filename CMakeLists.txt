@@ -9,8 +9,10 @@ set( sources
     src/Tokenizer.cc
     src/Symbol.cc
     src/Statement.cc
+    src/Statement_visitors.cc
     src/Named.cc
     src/Scope.cc
+    src/verify.cc
 )
 
 set( headers
@@ -19,8 +21,10 @@ set( headers
     src/Tokenizer.h
     src/Symbol.h
     src/Statement.h
+    src/Statement_visitors.h
     src/Named.h
     src/Scope.h
+    src/verify.h
 )
 
 #include( src )

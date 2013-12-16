@@ -186,37 +186,38 @@ void read_database_from_file( Metamath_database &db, Tokenizer &tokenizer )
     }
 }
 //------------------------------------------------------------------------------
-void write_expression_to_file( const std::vector<Symbol *> &expression,
+void write_expression_to_file( const Expression &expression,
     std::ostream &output_stream )
 {
     for( auto symbol : expression )
         output_stream << symbol->get_name() << ' ';
 }
 //------------------------------------------------------------------------------
-class Statement_writer : public Statement_visitor
+class Statement_writer : public Const_statement_visitor
 {
 public:
-    Statement_writer( Scoping_statement *scope, std::ostream &output_stream );
-    void operator()( Scoping_statement * ) override;
-    void operator()( Constant_declaration * ) override;
-    void operator()( Variable_declaration * ) override;
-    void operator()( Axiom * ) override;
-    void operator()( Theorem * ) override;
-    void operator()( Essential_hypothesis * ) override;
-    void operator()( Floating_hypothesis * ) override;
-    void operator()( Disjoint_variable_restriction * ) override;
+    Statement_writer( const Scoping_statement *scope,
+        std::ostream &output_stream );
+    void operator()( const Scoping_statement * ) override;
+    void operator()( const Constant_declaration * ) override;
+    void operator()( const Variable_declaration * ) override;
+    void operator()( const Axiom * ) override;
+    void operator()( const Theorem * ) override;
+    void operator()( const Essential_hypothesis * ) override;
+    void operator()( const Floating_hypothesis * ) override;
+    void operator()( const Disjoint_variable_restriction * ) override;
 private:
-    Scoping_statement *m_scope;
+    const Scoping_statement *m_scope;
     std::ostream &m_output_stream;
 };
 //------------------------------------------------------------------------------
-Statement_writer::Statement_writer( Scoping_statement *scope,
+Statement_writer::Statement_writer( const Scoping_statement *scope,
     std::ostream &output_stream ) :
     m_scope( scope ),
     m_output_stream( output_stream )
 { }
 //------------------------------------------------------------------------------
-void Statement_writer::operator()( Scoping_statement *inner_scope )
+void Statement_writer::operator()( const Scoping_statement *inner_scope )
 {
     m_output_stream << "${\n";
     {
@@ -224,35 +225,35 @@ void Statement_writer::operator()( Scoping_statement *inner_scope )
         while( scoped_statement )
         {
             Statement_writer writer( inner_scope, m_output_stream );
-            scoped_statement->welcome( writer );
+            scoped_statement->accept( writer );
             scoped_statement = scoped_statement->get_next();
         }
     }
     m_output_stream << "$}\n";
 }
 //------------------------------------------------------------------------------
-void Statement_writer::operator()( Constant_declaration *declaration )
+void Statement_writer::operator()( const Constant_declaration *declaration )
 {
     m_output_stream << "$c ";
     write_expression_to_file( declaration->get_expression(), m_output_stream );
     m_output_stream << "$.\n";
 }
 //------------------------------------------------------------------------------
-void Statement_writer::operator()( Variable_declaration *declaration )
+void Statement_writer::operator()( const Variable_declaration *declaration )
 {
     m_output_stream << "$v ";
     write_expression_to_file( declaration->get_expression(), m_output_stream );
     m_output_stream << "$.\n";
 }
 //------------------------------------------------------------------------------
-void Statement_writer::operator()( Axiom *axiom )
+void Statement_writer::operator()( const Axiom *axiom )
 {
     m_output_stream << axiom->get_name() << " $a ";
     write_expression_to_file( axiom->get_expression(), m_output_stream );
     m_output_stream << "$.\n";
 }
 //------------------------------------------------------------------------------
-void Statement_writer::operator()( Theorem *theorem )
+void Statement_writer::operator()( const Theorem *theorem )
 {
     m_output_stream << theorem->get_name() << " $p ";
     write_expression_to_file( theorem->get_expression(), m_output_stream );
@@ -264,28 +265,29 @@ void Statement_writer::operator()( Theorem *theorem )
     m_output_stream << "$.\n";
 }
 //------------------------------------------------------------------------------
-void Statement_writer::operator()( Floating_hypothesis *hypothesis )
+void Statement_writer::operator()( const Floating_hypothesis *hypothesis )
 {
     m_output_stream << hypothesis->get_name() << " $f ";
     write_expression_to_file( hypothesis->get_expression(), m_output_stream );
     m_output_stream << "$.\n";
 }
 //------------------------------------------------------------------------------
-void Statement_writer::operator()( Essential_hypothesis *hypothesis )
+void Statement_writer::operator()( const Essential_hypothesis *hypothesis )
 {
     m_output_stream << hypothesis->get_name() << " $e ";
     write_expression_to_file( hypothesis->get_expression(), m_output_stream );
     m_output_stream << "$.\n";
 }
 //------------------------------------------------------------------------------
-void Statement_writer::operator()( Disjoint_variable_restriction *restriction )
+void Statement_writer::operator()( const Disjoint_variable_restriction
+    *restriction )
 {
     m_output_stream << "$d ";
     write_expression_to_file( restriction->get_expression(), m_output_stream );
     m_output_stream << "$.\n";
 }
 //------------------------------------------------------------------------------
-void write_database_to_file( Metamath_database &db, std::ostream
+void write_database_to_file( const Metamath_database &db, std::ostream
     &output_stream )
 {
     auto scoped_statement = db.get_top_scope()->get_first();
@@ -293,7 +295,7 @@ void write_database_to_file( Metamath_database &db, std::ostream
     while( scoped_statement )
     {
         Statement_writer writer( db.get_top_scope(), output_stream );
-        scoped_statement->welcome( writer );
+        scoped_statement->accept( writer );
         scoped_statement = scoped_statement->get_next();
     }
 }

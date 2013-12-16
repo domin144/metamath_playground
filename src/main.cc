@@ -7,6 +7,7 @@
 #include "Metamath_database.h"
 #include "Metamath_database_read_write.h"
 #include "Tokenizer.h"
+#include "verify.h"
 
 int main( int argc, char *argv[] ) try
 {
@@ -29,6 +30,8 @@ int main( int argc, char *argv[] ) try
     write_database_to_file( db, output_db_file );
 
     //Proof converted_proof = convert_proof_inference( db, proof_name );
+
+    verify( db );
 
     return 0;
 }

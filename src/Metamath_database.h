@@ -14,6 +14,7 @@ class Metamath_database
 public:
     Metamath_database();
     Scoping_statement *get_top_scope();
+    const Scoping_statement *get_top_scope() const;
 private:
     Scoping_statement m_top_scope;
 };
