@@ -51,8 +51,11 @@ Constant_declaration::Constant_declaration()
 //------------------------------------------------------------------------------
 Constant_declaration::~Constant_declaration()
 {
-    for( auto constant : get_expression() )
-        delete constant;
+    while( !get_expression().empty() )
+    {
+        delete &get_expression().back();
+        get_expression().pop_back();
+    }
 }
 //------------------------------------------------------------------------------
 Variable_declaration::Variable_declaration()
@@ -60,8 +63,11 @@ Variable_declaration::Variable_declaration()
 //------------------------------------------------------------------------------
 Variable_declaration::~Variable_declaration()
 {
-    for( auto variable : get_expression() )
-        delete variable;
+    while( !get_expression().empty() )
+    {
+        delete &get_expression().back();
+        get_expression().pop_back();
+    }
 }
 //------------------------------------------------------------------------------
 Axiom::Axiom( const std::string &label ) :

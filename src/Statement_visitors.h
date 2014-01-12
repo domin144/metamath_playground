@@ -159,5 +159,11 @@ Statement_pointer statement_cast( Statement *statement )
 {
     return Statement_caster<Statement_pointer>( statement );
 }
+//------------------------------------------------------------------------------
+template<class Statement_pointer>
+Statement_pointer statement_cast( const Statement *statement )
+{
+    return Const_statement_caster<Statement_pointer>( statement );
+}
 
 #endif // STATEMENT_VISITOR_H

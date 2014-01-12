@@ -3,6 +3,7 @@
 
 #include "Metamath_database.h"
 
-bool verify( Metamath_database &db );
+bool verify( const Theorem *theorem );
+bool verify( const Metamath_database &db );
 
 #endif // VERIFY_H
