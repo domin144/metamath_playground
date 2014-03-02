@@ -189,8 +189,8 @@ void read_database_from_file( Metamath_database &db, Tokenizer &tokenizer )
 void write_expression_to_file( const Expression &expression,
     std::ostream &output_stream )
 {
-    for( auto &symbol : expression )
-        output_stream << symbol.get_name() << ' ';
+    for( auto symbol : expression )
+        output_stream << symbol->get_name() << ' ';
 }
 //------------------------------------------------------------------------------
 class Statement_writer : public Const_statement_visitor

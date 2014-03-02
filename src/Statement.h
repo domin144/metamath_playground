@@ -3,7 +3,6 @@
 
 #include <vector>
 #include <list>
-#include <boost/ptr_container/ptr_vector.hpp>
 
 #include "Symbol.h"
 
@@ -69,8 +68,7 @@ protected:
     { }
 };
 //------------------------------------------------------------------------------
-typedef boost::ptr_vector< Symbol, boost::view_clone_allocator >
-    Expression;
+typedef std::vector<const Symbol *> Expression;
 //------------------------------------------------------------------------------
 class Expression_holder
 {

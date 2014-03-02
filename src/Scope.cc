@@ -88,16 +88,16 @@ void Scoping_statement::add_statement( Statement *statement )
         { }
         void operator()( Constant_declaration *declaration ) override
         {
-            for( auto &symbol : declaration->get_expression() )
+            for( auto symbol : declaration->get_expression() )
             {
-                m_scope.m_label_to_symbol[symbol.get_name()] = &symbol;
+                m_scope.m_label_to_symbol[symbol->get_name()] = symbol;
             }
         }
         void operator()( Variable_declaration *declaration ) override
         {
-            for( auto &symbol : declaration->get_expression() )
+            for( auto symbol : declaration->get_expression() )
             {
-                m_scope.m_label_to_symbol[symbol.get_name()] = &symbol;
+                m_scope.m_label_to_symbol[symbol->get_name()] = symbol;
             }
         }
         void operator()( Axiom *axiom ) override

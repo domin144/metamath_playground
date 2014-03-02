@@ -31,7 +31,7 @@ int main( int argc, char *argv[] ) try
 
     //Proof converted_proof = convert_proof_inference( db, proof_name );
 
-    verify( db );
+    std::cout << "verification result: " << verify( db ) << '\n';
 
     return 0;
 }

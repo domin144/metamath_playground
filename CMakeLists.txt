@@ -8,8 +8,9 @@ set( sources
     src/Metamath_database_read_write.cc
     src/Tokenizer.cc
     src/Symbol.cc
+    src/Symbol_visitors.cc
     src/Statement.cc
-    src/Statement_visitors.cc
+    src/Symbol_visitors.cc
     src/Named.cc
     src/Scope.cc
     src/verify.cc
@@ -20,6 +21,7 @@ set( headers
     src/Metamath_database_read_write.h
     src/Tokenizer.h
     src/Symbol.h
+    src/Statement_visitors.h
     src/Statement.h
     src/Statement_visitors.h
     src/Named.h
