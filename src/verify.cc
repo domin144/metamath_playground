@@ -78,22 +78,27 @@ void collect_extended_frame( Frame &frame )
         statement->accept( collector );
         statement = statement->get_previous();
     }
+    std::reverse( frame.get_statements().begin(),
+        frame.get_statements().end() );
 }
 //------------------------------------------------------------------------------
 class Variable_collector : public Const_symbol_visitor
 {
 public:
-    Variable_collector( std::vector<const Variable *> variables ) :
+    Variable_collector( std::vector<const Variable *> &variables ) :
         m_variables( variables )
     { }
     void operator()( const Variable *variable ) override
     {
-        m_variables.push_back( variable );
+        const bool variable_present = std::find( m_variables.begin(),
+            m_variables.end(), variable ) != m_variables.end();
+        if( !variable_present )
+            m_variables.push_back( variable );
     }
     void operator()( const Constant * ) override
     { }
 private:
-    std::vector<const Variable *> m_variables;
+    std::vector<const Variable *> &m_variables;
 };
 //------------------------------------------------------------------------------
 void extract_variables( std::vector<const Variable *> &variables,
@@ -109,7 +114,7 @@ void extract_variables( std::vector<const Variable *> &variables,
 void extract_variables( std::vector<const Variable *> &variables, Frame &frame )
 {
     auto assertion = statement_cast<const Assertion *>(
-        frame.get_statements().front() );
+        frame.get_statements().back() );
     assert( assertion );
     extract_variables( variables, assertion );
     for( auto statement : frame.get_statements() )
@@ -142,7 +147,8 @@ public:
             { }
             void operator()( const Floating_hypothesis *hypothesis ) override
             {
-                auto variable = hypothesis->get_expression().front();
+                auto variable = hypothesis->get_expression().back();
+                assert( symbol_cast<const Variable *>( variable ) );
                 m_result = std::find( m_variables.begin(), m_variables.end(),
                     variable ) != m_variables.end();
             }
@@ -203,15 +209,15 @@ class Symbol_substitutor : private Const_symbol_visitor
 {
 public:
     Symbol_substitutor( const Substitution_map &substitution,
-        const Expression &source, Expression &target
+        const Expression &base, Expression &effect
     ) :
         m_substitution( substitution ),
-        m_source( source ),
-        m_target( target )
+        m_base( base ),
+        m_effect( effect )
     { }
     void substitute()
     {
-        for( auto symbol : m_source )
+        for( auto symbol : m_base )
         {
             symbol->accept( *this );
         }
@@ -221,24 +227,24 @@ private:
     void operator()( const Constant *constant ) override
     {
         // copy constant
-        m_target.push_back( constant );
+        m_effect.push_back( constant );
     }
     void operator()( const Variable *variable ) override
     {
         // substitute variable
         auto &substituted_expression = m_substitution.at( variable );
-        m_target.insert( m_target.end(), substituted_expression.begin(),
+        m_effect.insert( m_effect.end(), substituted_expression.begin(),
             substituted_expression.end() );
     }
     const Substitution_map &m_substitution;
-    const Expression &m_source;
-    Expression &m_target;
+    const Expression &m_base;
+    Expression &m_effect;
 };
 //------------------------------------------------------------------------------
 void apply_substitution( const Substitution_map &substitution,
-    const Expression &source, Expression &target )
+    const Expression &base, Expression &effect )
 {
-    Symbol_substitutor symbol_substitutor( substitution, source, target );
+    Symbol_substitutor symbol_substitutor( substitution, base, effect );
     symbol_substitutor.substitute();
 }
 //------------------------------------------------------------------------------
@@ -246,27 +252,27 @@ class Substitution_collector : private Lazy_const_statement_visitor
 {
 public:
     Substitution_collector( Substitution_map &map,
-        const std::vector<Expression> &target,
-        const std::vector<const Statement *> &source
+        const std::vector<Expression> &effect,
+        const std::vector<const Statement *> &base
     ) :
         m_map( map ),
-        m_target( target ),
-        m_source( source ),
-        m_target_iterator( target.begin() ),
+        m_effect( effect ),
+        m_base( base ),
+        m_effect_iterator( effect.begin() ),
         m_result( true )
     {
-        if( source.size() != target.size() )
+        if( base.size() != effect.size() )
         {
-            throw( std::runtime_error( "count of source expression does not "
-                "match target statesments count" ) );
+            throw( std::runtime_error( "count of base expression does not "
+                "match effect statesments count" ) );
         }
     }
     bool collect()
     {
-        for( auto statement : m_source )
+        for( auto statement : m_base )
         {
             statement->accept( *this );
-            ++m_target_iterator;
+            ++m_effect_iterator;
             if( !m_result )
                 return false;
         }
@@ -276,14 +282,14 @@ public:
 private:
     void operator()( const Essential_hypothesis *hypothesis ) override
     {
-        auto &target_expression = *m_target_iterator;
-        auto &source_expression = hypothesis->get_expression();
+        auto &effect_expression = *m_effect_iterator;
+        auto &base_expression = hypothesis->get_expression();
 
         // verify substitution
         Expression substitution_result;
-        apply_substitution( m_map, source_expression, substitution_result );
+        apply_substitution( m_map, base_expression, substitution_result );
 
-        if( substitution_result != target_expression )
+        if( substitution_result != effect_expression )
         {
             m_result = false;
             return;
@@ -291,38 +297,38 @@ private:
     }
     void operator()( const Floating_hypothesis *hypothesis ) override
     {
-        auto &target_expression = *m_target_iterator;
-        auto &source_expression = hypothesis->get_expression();
+        auto &effect_expression = *m_effect_iterator;
+        auto &base_expression = hypothesis->get_expression();
 
         // add substitution for variable
-        if( source_expression[0] != target_expression[0] )
+        if( base_expression[0] != effect_expression[0] )
         {
             m_result = false;
             return;
         }
 
-        if( m_map.find( source_expression[1] ) != m_map.end() )
+        if( m_map.find( base_expression[1] ) != m_map.end() )
         {
             m_result = false;
             return;
         }
 
-        m_map[source_expression[1]].assign(
-            ++target_expression.begin(), target_expression.end() );
+        m_map[base_expression[1]].assign(
+            ++effect_expression.begin(), effect_expression.end() );
     }
 
     Substitution_map &m_map;
-    const std::vector<Expression> &m_target;
-    const std::vector<const Statement *> &m_source;
-    std::vector<Expression>::const_iterator m_target_iterator;
+    const std::vector<Expression> &m_effect;
+    const std::vector<const Statement *> &m_base;
+    std::vector<Expression>::const_iterator m_effect_iterator;
     bool m_result;
 };
 //------------------------------------------------------------------------------
 bool fill_substitution_map( Substitution_map &map,
-    const std::vector<Expression> &target,
-    const std::vector<const Statement *> &source )
+    const std::vector<Expression> &effect,
+    const std::vector<const Statement *> &base )
 {
-    Substitution_collector substitution_collector( map, target, source );
+    Substitution_collector substitution_collector( map, effect, base );
     return substitution_collector.collect();
 }
 //------------------------------------------------------------------------------
@@ -460,14 +466,21 @@ private:
         collect_frame( frame );
 
         Substitution_map substitution_map;
-        m_result = fill_substitution_map( substitution_map, m_stack,
-            frame.get_statements() );
+        const auto substitution_range = frame.get_statements().size() - 1;
+        assert( m_stack.size() >= substitution_range );
+        std::vector<Expression> substitution_effect(
+            m_stack.end() - substitution_range, m_stack.end() );
+        std::vector<const Statement *> substitution_base(
+            frame.get_statements().begin(), frame.get_statements().end() - 1 );
+        m_result = fill_substitution_map( substitution_map, substitution_effect,
+            substitution_base );
         if( !m_result )
             return;
         m_result = verify_disjoint_variable_restrictions( substitution_map,
             frame.get_restrictions() );
         if( !m_result )
             return;
+        m_stack.resize( m_stack.size() - substitution_range );
 
         m_stack.push_back( Expression() );
         apply_substitution( substitution_map, assertion->get_expression(),
@@ -511,17 +524,35 @@ bool verify( const Theorem *theorem )
     return stack.get_top() == theorem->get_expression();
 }
 //------------------------------------------------------------------------------
+class Statement_verifier : public Lazy_const_statement_visitor
+{
+public:
+    void operator()( const Scoping_statement *scoping_statement ) override
+    {
+        auto statement = scoping_statement->get_first();
+        while( statement )
+        {
+            statement->accept( *this );
+            if( !m_result )
+                break;
+            statement = statement->get_next();
+        }
+    }
+    void operator()( const Theorem *theorem ) override
+    {
+        m_result = verify( theorem );
+    }
+    bool operator()()
+    {
+        return m_result;
+    }
+private:
+    bool m_result = true;
+};
+//------------------------------------------------------------------------------
 bool verify( const Metamath_database &db )
 {
-    auto statement = db.get_top_scope()->get_first();
-    while( statement )
-    {
-        auto theorem = statement_cast<const Theorem *>( statement );
-        if( theorem )
-        {
-            verify( theorem );
-        }
-        statement = statement->get_next();
-    }
-    return false;
+    Statement_verifier verifier;
+    db.get_top_scope()->accept( verifier );
+    return verifier();
 }

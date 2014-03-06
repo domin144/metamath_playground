@@ -11,7 +11,7 @@ public:
     Scoping_statement( Scoping_statement *parrent=0 );
     ~Scoping_statement();
     bool is_top() const;
-    const Symbol *get_symbol_by_label( const std::string &label );
+    const Symbol *get_symbol_by_label( const std::string &label ) const;
     const Named_statement *get_statement_by_label( const std::string &label );
     void add_statement( Statement *statement );
     Scoping_statement *get_parrent();

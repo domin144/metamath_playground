@@ -20,7 +20,8 @@ bool Scoping_statement::is_top() const
     return !m_parrent;
 }
 //------------------------------------------------------------------------------
-const Symbol *Scoping_statement::get_symbol_by_label( const std::string &label)
+const Symbol *Scoping_statement::get_symbol_by_label( const std::string &label )
+    const
 {
     auto i = m_label_to_symbol.find( label );
     if( i!=m_label_to_symbol.end() )
@@ -76,6 +77,7 @@ void Scoping_statement::add_statement( Statement *statement )
     else
     {
         m_first = m_last = statement;
+        statement->set_previous( this );
     }
 
     class Name_registrator : public Statement_visitor

@@ -3,12 +3,12 @@
 #include "Metamath_database_read_write.h"
 
 void read_expression( Expression &expression, Tokenizer &tokenizer,
-    const std::string &terminating_token="$." )
+    const Scoping_statement *scope, const std::string &terminating_token="$." )
 {
     while( tokenizer.peek() != terminating_token )
     {
-        auto variable = new Variable( tokenizer.get_token() );
-        expression.push_back( variable );
+        auto symbol = scope->get_symbol_by_label( tokenizer.get_token() );
+        expression.push_back( symbol );
     }
 }
 //------------------------------------------------------------------------------
@@ -34,7 +34,12 @@ void read_variables( Scoping_statement *scope, Tokenizer &tokenizer, const
         throw( std::runtime_error("variables do not start with \"$v\"") );
 
     auto declaration = new Variable_declaration();
-    read_expression( declaration->get_expression(), tokenizer );
+    while( tokenizer.peek() != "$." )
+    {
+        auto variable = new Variable( tokenizer.get_token() );
+        declaration->get_expression().push_back( variable );
+    }
+    read_expression( declaration->get_expression(), tokenizer, scope );
     scope->add_statement( declaration );
     tokenizer.get_token(); // consume "$."
 }
@@ -46,7 +51,11 @@ void read_constants( Scoping_statement *scope, Tokenizer &tokenizer, const
         throw( std::runtime_error("constants do not start with \"$c\"") );
 
     auto declaration = new Constant_declaration();
-    read_expression( declaration->get_expression(), tokenizer );
+    while( tokenizer.peek() != "$." )
+    {
+        auto constant = new Constant( tokenizer.get_token() );
+        declaration->get_expression().push_back( constant );
+    }
     scope->add_statement( declaration );
     tokenizer.get_token(); // consume "$."
 }
@@ -59,7 +68,7 @@ void read_floating_hypothesis( Scoping_statement *scope, Tokenizer &tokenizer,
             "\"$f\"") );
 
     auto hypothesis = new Floating_hypothesis( label );
-    read_expression( hypothesis->get_expression(), tokenizer );
+    read_expression( hypothesis->get_expression(), tokenizer, scope );
     scope->add_statement( hypothesis );
     tokenizer.get_token(); // consume "$."
 }
@@ -71,7 +80,7 @@ void read_essential_hypothesis( Scoping_statement *scope, Tokenizer &tokenizer, 
         throw( std::runtime_error("assumption does not start with \"$e\"") );
 
     auto hypothesis = new Essential_hypothesis( label );
-    read_expression( hypothesis->get_expression(), tokenizer );
+    read_expression( hypothesis->get_expression(), tokenizer, scope );
     scope->add_statement( hypothesis );
     tokenizer.get_token(); // consume "$."
 }
@@ -83,7 +92,7 @@ void read_axiom( Scoping_statement *scope, Tokenizer &tokenizer,
         throw( std::runtime_error("axiom does not start with \"$a\"") );
 
     auto axiom = new Axiom( label );
-    read_expression( axiom->get_expression(), tokenizer );
+    read_expression( axiom->get_expression(), tokenizer, scope );
     scope->add_statement( axiom );
     tokenizer.get_token(); // consume "$."
 }
@@ -95,7 +104,7 @@ void read_theorem( Scoping_statement *scope, Tokenizer &tokenizer, const
         throw( std::runtime_error("theorem does not start with \"$e\"") );
 
     auto theorem = new Theorem( label );
-    read_expression( theorem->get_expression(), tokenizer, "$=" );
+    read_expression( theorem->get_expression(), tokenizer, scope, "$=" );
     tokenizer.get_token(); // consume "$="
     while( tokenizer.peek() != "$." )
     {
@@ -114,7 +123,7 @@ void read_disjoint_variable_restriction( Scoping_statement *scope,
             " with \"$v\"") );
 
     auto restriction = new Disjoint_variable_restriction();
-    read_expression( restriction->get_expression(), tokenizer );
+    read_expression( restriction->get_expression(), tokenizer, scope );
     scope->add_statement( restriction );
     tokenizer.get_token(); // consume "$."
 }
