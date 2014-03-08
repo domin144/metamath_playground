@@ -1,6 +1,5 @@
 #include <iostream>
 #include <fstream>
-#include <cassert>
 #include <string>
 #include <stdexcept>
 
@@ -31,7 +30,15 @@ int main( int argc, char *argv[] ) try
 
     //Proof converted_proof = convert_proof_inference( db, proof_name );
 
-    std::cout << "verification result: " << verify( db ) << '\n';
+    try
+    {
+        verify( db );
+        std::cout << "verification succeeded\n";
+    }
+    catch( const verification_failure &e )
+    {
+        std::cout << "verification failed: " << e.what() << "\n";
+    }
 
     return 0;
 }

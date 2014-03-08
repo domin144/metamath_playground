@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <cassert>
 #include <stack>
+#include <sstream>
 
 #include "Statement_visitors.h"
 #include "Symbol_visitors.h"
@@ -115,7 +116,9 @@ void extract_variables( std::vector<const Variable *> &variables, Frame &frame )
 {
     auto assertion = statement_cast<const Assertion *>(
         frame.get_statements().back() );
-    assert( assertion );
+    if( !assertion )
+        throw std::runtime_error( "last statement in a frame is not an "
+            "assertion" );
     extract_variables( variables, assertion );
     for( auto statement : frame.get_statements() )
     {
@@ -148,7 +151,9 @@ public:
             void operator()( const Floating_hypothesis *hypothesis ) override
             {
                 auto variable = hypothesis->get_expression().back();
-                assert( symbol_cast<const Variable *>( variable ) );
+                if( !symbol_cast<const Variable *>( variable ) )
+                    throw std::runtime_error( "second symbol in a floating "
+                        "hypothesis is not a variable" );
                 m_result = std::find( m_variables.begin(), m_variables.end(),
                     variable ) != m_variables.end();
             }
@@ -258,25 +263,21 @@ public:
         m_map( map ),
         m_effect( effect ),
         m_base( base ),
-        m_effect_iterator( effect.begin() ),
-        m_result( true )
+        m_effect_iterator( effect.begin() )
     {
         if( base.size() != effect.size() )
         {
-            throw( std::runtime_error( "count of base expression does not "
+            throw( verification_failure( "count of base expression does not "
                 "match effect statesments count" ) );
         }
     }
-    bool collect()
+    void collect()
     {
         for( auto statement : m_base )
         {
             statement->accept( *this );
             ++m_effect_iterator;
-            if( !m_result )
-                return false;
         }
-        return m_result;
     }
 
 private:
@@ -291,8 +292,11 @@ private:
 
         if( substitution_result != effect_expression )
         {
-            m_result = false;
-            return;
+            std::stringstream ss;
+            ss <<  "substitution in an essential hypothesis \"" <<
+                hypothesis->get_name() << "\" does not match one deducted from "
+                "a floating hyptheses";
+            throw verification_failure( ss.str() );
         }
     }
     void operator()( const Floating_hypothesis *hypothesis ) override
@@ -303,14 +307,18 @@ private:
         // add substitution for variable
         if( base_expression[0] != effect_expression[0] )
         {
-            m_result = false;
-            return;
+            std::stringstream ss;
+            ss << "floating hypthesis \"" << hypothesis->get_name() << "\" does"
+                " not match expression in substitution";
+            throw verification_failure( ss.str() );
         }
 
         if( m_map.find( base_expression[1] ) != m_map.end() )
         {
-            m_result = false;
-            return;
+            std::stringstream ss;
+            ss << "floating hypthesis \"" << hypothesis->get_name() <<
+                "\" found twice while composing substitution";
+            throw verification_failure( ss.str() );
         }
 
         m_map[base_expression[1]].assign(
@@ -321,15 +329,14 @@ private:
     const std::vector<Expression> &m_effect;
     const std::vector<const Statement *> &m_base;
     std::vector<Expression>::const_iterator m_effect_iterator;
-    bool m_result;
 };
 //------------------------------------------------------------------------------
-bool fill_substitution_map( Substitution_map &map,
+void fill_substitution_map( Substitution_map &map,
     const std::vector<Expression> &effect,
     const std::vector<const Statement *> &base )
 {
     Substitution_collector substitution_collector( map, effect, base );
-    return substitution_collector.collect();
+    substitution_collector.collect();
 }
 //------------------------------------------------------------------------------
 bool are_restricted_disjoint( const Variable *variable_0,
@@ -349,7 +356,7 @@ bool are_restricted_disjoint( const Variable *variable_0,
     return false;
 }
 //------------------------------------------------------------------------------
-bool verify_disjoint_variable_restriction( const Expression &expression_0,
+void verify_disjoint_variable_restriction( const Expression &expression_0,
     const Expression &expression_1,
     const std::vector<const Disjoint_variable_restriction *> &restrictions )
 {
@@ -363,64 +370,70 @@ bool verify_disjoint_variable_restriction( const Expression &expression_0,
             {
                 if( variable_0 == variable_1 )
                 {
-                    return false;
+                    std::stringstream ss;
+                    ss << "same variable \"" << variable_0->get_name() <<
+                        "\" in both expressions";
+                    throw verification_failure( ss.str() );
                 }
                 else
                 {
                     const bool result = are_restricted_disjoint( variable_0,
                         variable_1, restrictions );
                     if( !result )
-                        return false;
+                    {
+                        std::stringstream ss;
+                        ss << "no distinct variable restriction found to "
+                            "guarantee, that variables \"" <<
+                            variable_0->get_name() << "\" and \"" <<
+                            variable_1->get_name() << "\" stay distinct";
+                        throw verification_failure( ss.str() );
+                    }
                 }
-
             }
         }
     }
-    return true;
 }
 //------------------------------------------------------------------------------
-bool verify_disjoint_variable_restrictions(
+void verify_disjoint_variable_restrictions(
     const Substitution_map &substitution_map,
     const std::vector<const Disjoint_variable_restriction *> &restrictions )
 {
-    for( auto &substitution_0 : substitution_map )
+    for( auto restriction : restrictions )
     {
-        for( auto &substitution_1 : substitution_map )
+        if( restriction->get_expression().size() > 2 )
+            throw verification_failure( "TODO: handle distinct variable "
+                "restrictions with more than two variables" );
+        for( auto &substitution_0 : substitution_map )
         {
-            auto variable_0 = substitution_0.first;
-            auto variable_1 = substitution_1.first;
-            for( auto &restriction : restrictions )
+            for( auto &substitution_1 : substitution_map )
             {
+                auto variable_0 = substitution_0.first;
+                auto variable_1 = substitution_1.first;
                 if( variable_0 == restriction->get_expression().at(0) &&
                     variable_1 == restriction->get_expression().at(1) )
                 {
-                    const bool result = verify_disjoint_variable_restriction(
+                    verify_disjoint_variable_restriction(
                         substitution_0.second, substitution_1.second,
                         restrictions );
-                    if( !result )
-                        return false;
                 }
             }
         }
     }
-    return true;
 }
 //------------------------------------------------------------------------------
 class Proof_stack : private Const_statement_visitor
 {
 public:
     Proof_stack( const Frame &frame ) :
-        m_frame( frame ),
-        m_result( true )
+        m_frame( frame )
     { }
     const Expression &get_top() const
     {
         return m_stack.back();
     }
-    bool push( const Statement *statement )
+    void push( const Statement *statement )
     {
         statement->accept( *this );
-        return m_result;
     }
 
 private:
@@ -458,71 +471,56 @@ private:
     }
     void invalid_statement()
     {
-        throw( std::runtime_error( "invalid statement found in proof" ) );
+        throw verification_failure( "invalid statement type found in proof" );
     }
     void push_assertion( const Assertion *assertion )
     {
+        if( assertion->get_name() == "?" )
+            throw verification_failure( "missing proof step found" );
+
         Frame frame( assertion );
         collect_frame( frame );
 
         Substitution_map substitution_map;
         const auto substitution_range = frame.get_statements().size() - 1;
-        assert( m_stack.size() >= substitution_range );
+        if( m_stack.size() < substitution_range )
+            throw verification_failure( "not enough expressions on stack found"
+                " to make a substitution" );
         std::vector<Expression> substitution_effect(
             m_stack.end() - substitution_range, m_stack.end() );
         std::vector<const Statement *> substitution_base(
             frame.get_statements().begin(), frame.get_statements().end() - 1 );
-        m_result = fill_substitution_map( substitution_map, substitution_effect,
+        fill_substitution_map( substitution_map, substitution_effect,
             substitution_base );
-        if( !m_result )
-            return;
-        m_result = verify_disjoint_variable_restrictions( substitution_map,
+        verify_disjoint_variable_restrictions( substitution_map,
             frame.get_restrictions() );
-        if( !m_result )
-            return;
         m_stack.resize( m_stack.size() - substitution_range );
 
         m_stack.push_back( Expression() );
         apply_substitution( substitution_map, assertion->get_expression(),
             m_stack.back() );
     }
-    void push_hypothesis( const Statement *statement,
+    void push_hypothesis( const Named_statement *statement,
         const Expression &expression )
     {
         auto available_statements = m_frame.get_statements();
         const bool available = std::find( available_statements.begin(),
             available_statements.end(), statement ) !=
             available_statements.end();
-        if( available )
+        if( !available )
         {
-            m_stack.push_back( expression );
+            std::stringstream ss;
+            ss << "proof uses hypothesis \"" << statement->get_name() <<
+                "\" which is not available in theorem's frame";
+            throw verification_failure( ss.str() );
         }
-        m_result = available;
+        m_stack.push_back( expression );
     }
 
 private:
     const Frame &m_frame;
     std::vector<Expression> m_stack;
-    bool m_result;
 };
-//------------------------------------------------------------------------------
-bool verify( const Theorem *theorem )
-{
-    Frame frame( theorem );
-    collect_frame( frame );
-    Proof_stack stack( frame );
-    bool result = true;
-
-    for( auto statement : theorem->get_proof() )
-    {
-        result = stack.push( statement );
-        if( !result )
-        {
-            return false;
-        }
-    }
-    return stack.get_top() == theorem->get_expression();
-}
 //------------------------------------------------------------------------------
 class Statement_verifier : public Lazy_const_statement_visitor
 {
@@ -533,26 +531,43 @@ public:
         while( statement )
         {
             statement->accept( *this );
-            if( !m_result )
-                break;
             statement = statement->get_next();
         }
     }
-    void operator()( const Theorem *theorem ) override
+    void operator()( const Theorem *theorem ) override try
     {
-        m_result = verify( theorem );
+        Frame frame( theorem );
+        collect_frame( frame );
+        Proof_stack stack( frame );
+
+        for( auto statement : theorem->get_proof() )
+        {
+            stack.push( statement );
+        }
+
+        if( stack.get_top() != theorem->get_expression() )
+        {
+            throw verification_failure( "proof result does not match theorem "
+                "expression" );
+        }
     }
-    bool operator()()
+    catch( const verification_failure &e )
     {
-        return m_result;
+        std::stringstream ss;
+        ss << "failed to verify proof of theorem \"" << theorem->get_name() <<
+            "\": " << e.what();
+        throw verification_failure( ss.str() );
     }
-private:
-    bool m_result = true;
 };
 //------------------------------------------------------------------------------
-bool verify( const Metamath_database &db )
+void verify( const Theorem *theorem )
+{
+    Statement_verifier verifier;
+    theorem->accept( verifier );
+}
+//------------------------------------------------------------------------------
+void verify( const Metamath_database &db )
 {
     Statement_verifier verifier;
     db.get_top_scope()->accept( verifier );
-    return verifier();
 }
