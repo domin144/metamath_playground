@@ -261,7 +261,6 @@ public:
         const std::vector<const Statement *> &base
     ) :
         m_map( map ),
-        m_effect( effect ),
         m_base( base ),
         m_effect_iterator( effect.begin() )
     {
@@ -326,7 +325,6 @@ private:
     }
 
     Substitution_map &m_map;
-    const std::vector<Expression> &m_effect;
     const std::vector<const Statement *> &m_base;
     std::vector<Expression>::const_iterator m_effect_iterator;
 };
@@ -345,10 +343,14 @@ bool are_restricted_disjoint( const Variable *variable_0,
 {
     for( auto restriction : restrictions )
     {
-        auto restricted_0 = restriction->get_expression().at(0);
-        auto restricted_1 = restriction->get_expression().at(1);
-        if( ( restricted_0 == variable_0 && restricted_1 == variable_1 ) ||
-            ( restricted_1 == variable_0 && restricted_0 == variable_1 ) )
+        const auto &expression = restriction->get_expression();
+        bool found_0 =
+            std::find( expression.begin(), expression.end(), variable_0 ) !=
+            expression.end();
+        bool found_1 =
+            std::find( expression.begin(), expression.end(), variable_1 ) !=
+            expression.end();
+        if( found_0 && found_1 )
         {
             return true;
         }

@@ -205,8 +205,7 @@ void write_expression_to_file( const Expression &expression,
 class Statement_writer : public Const_statement_visitor
 {
 public:
-    Statement_writer( const Scoping_statement *scope,
-        std::ostream &output_stream );
+    Statement_writer( std::ostream &output_stream );
     void operator()( const Scoping_statement * ) override;
     void operator()( const Constant_declaration * ) override;
     void operator()( const Variable_declaration * ) override;
@@ -216,13 +215,10 @@ public:
     void operator()( const Floating_hypothesis * ) override;
     void operator()( const Disjoint_variable_restriction * ) override;
 private:
-    const Scoping_statement *m_scope;
     std::ostream &m_output_stream;
 };
 //------------------------------------------------------------------------------
-Statement_writer::Statement_writer( const Scoping_statement *scope,
-    std::ostream &output_stream ) :
-    m_scope( scope ),
+Statement_writer::Statement_writer( std::ostream &output_stream ) :
     m_output_stream( output_stream )
 { }
 //------------------------------------------------------------------------------
@@ -233,7 +229,7 @@ void Statement_writer::operator()( const Scoping_statement *inner_scope )
         auto scoped_statement = inner_scope->get_first();
         while( scoped_statement )
         {
-            Statement_writer writer( inner_scope, m_output_stream );
+            Statement_writer writer( m_output_stream );
             scoped_statement->accept( writer );
             scoped_statement = scoped_statement->get_next();
         }
@@ -303,7 +299,7 @@ void write_database_to_file( const Metamath_database &db, std::ostream
     scoped_statement = scoped_statement->get_next(); // skip invalid axiom
     while( scoped_statement )
     {
-        Statement_writer writer( db.get_top_scope(), output_stream );
+        Statement_writer writer( output_stream );
         scoped_statement->accept( writer );
         scoped_statement = scoped_statement->get_next();
     }
