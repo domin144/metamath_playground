@@ -24,7 +24,9 @@ public:
 class Symbol : public Named
 {
 protected:
-    Symbol( const std::string &name );
+    Symbol( const std::string &name ) :
+        Named( name )
+    { }
 public:
     virtual ~Symbol()
     { }
@@ -35,7 +37,9 @@ public:
 class Variable : public Symbol
 {
 public:
-    Variable( const std::string &name );
+    Variable( const std::string &name ) :
+        Symbol( name )
+    { }
     void accept( Symbol_visitor &visitor ) override
     {
         visitor( this );
@@ -49,7 +53,9 @@ public:
 class Constant : public Symbol
 {
 public:
-    Constant( const std::string &name );
+    Constant( const std::string &name ) :
+        Symbol( name )
+    { }
     void accept( Symbol_visitor &visitor ) override
     {
         visitor( this );

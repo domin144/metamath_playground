@@ -8,6 +8,21 @@
 #include "Symbol_visitors.h"
 #include "verify.h"
 
+//#define VERIFIER_DEBUG
+#ifdef VERIFIER_DEBUG
+#include <iostream>
+void print_expression( const int i, const std::string &name,
+    const Expression &expression )
+{
+    std::cout << i << ", " << name << ": ";
+    for( auto symbol : expression )
+    {
+        std::cout << symbol->get_name() << ' ';
+    }
+    std::cout << '\n';
+}
+#endif
+
 class Frame
 {
 public:
@@ -423,7 +438,8 @@ void verify_disjoint_variable_restrictions(
     }
 }
 //------------------------------------------------------------------------------
-class Proof_stack : private Const_statement_visitor
+class Proof_stack :
+    private Const_proof_step_visitor
 {
 public:
     Proof_stack( const Frame &frame ) :
@@ -433,47 +449,37 @@ public:
     {
         return m_stack.back();
     }
-    void push( const Statement *statement )
+    void push( const Proof_step *step )
     {
-        statement->accept( *this );
+        step->accept( *this );
     }
 
 private:
-    void operator()( const Scoping_statement * ) override
+    void operator()( const Assertion_step *step ) override
     {
-        invalid_statement();
+        push_assertion( step->get_assertion() );
     }
-    void operator()( const Constant_declaration * ) override
+    void operator()( const Essential_hypothesis_step *step ) override
     {
-        invalid_statement();
-    }
-    void operator()( const Variable_declaration * ) override
-    {
-        invalid_statement();
-    }
-    void operator()( const Axiom *axiom ) override
-    {
-        push_assertion( axiom );
-    }
-    void operator()( const Theorem *theorem ) override
-    {
-        push_assertion( theorem );
-    }
-    void operator()( const Essential_hypothesis *hypothesis ) override
-    {
+        auto hypothesis = step->get_hypothesis();
         push_hypothesis( hypothesis, hypothesis->get_expression() );
     }
-    void operator()( const Floating_hypothesis *hypothesis ) override
+    void operator()( const Floating_hypothesis_step *step ) override
     {
+        auto hypothesis = step->get_hypothesis();
         push_hypothesis( hypothesis, hypothesis->get_expression() );
     }
-    void operator()( const Disjoint_variable_restriction * )
+    void operator()( const Add_reference_step * ) override
     {
-        invalid_statement();
+        throw std::runtime_error( "not implemented yet" );
     }
-    void invalid_statement()
+    void operator()( const Refer_step * ) override
     {
-        throw verification_failure( "invalid statement type found in proof" );
+        throw std::runtime_error( "not implemented yet" );
+    }
+    void operator()( const Unknown_step * ) override
+    {
+        throw verification_failure( "missing proof step found" );
     }
     void push_assertion( const Assertion *assertion )
     {
@@ -495,12 +501,27 @@ private:
         fill_substitution_map( substitution_map, substitution_effect,
             substitution_base );
         verify_disjoint_variable_restrictions( substitution_map,
-            frame.get_restrictions() );
+            frame.get_restrictions() );  
+#ifdef VERIFIER_DEBUG
+        std::cout << "using: ";
+        const int stack_size = m_stack.size();
+        for( int i=stack_size-substitution_range; i<stack_size; i++ )
+        {
+            std::cout << m_number_stack[i] << ' ';
+        }
+        std::cout << '\n';
+        m_number_stack.resize( m_stack.size()-substitution_range );
+#endif
         m_stack.resize( m_stack.size() - substitution_range );
 
         m_stack.push_back( Expression() );
         apply_substitution( substitution_map, assertion->get_expression(),
             m_stack.back() );
+#ifdef VERIFIER_DEBUG
+        m_number_stack.push_back( m_pushed_count );
+        print_expression( m_pushed_count++, assertion->get_name(),
+            m_stack.back() );
+#endif
     }
     void push_hypothesis( const Named_statement *statement,
         const Expression &expression )
@@ -517,11 +538,20 @@ private:
             throw verification_failure( ss.str() );
         }
         m_stack.push_back( expression );
+#ifdef VERIFIER_DEBUG
+        m_number_stack.push_back( m_pushed_count );
+        print_expression( m_pushed_count++, statement->get_name(),
+            m_stack.back() );
+#endif
     }
 
 private:
     const Frame &m_frame;
     std::vector<Expression> m_stack;
+#ifdef VERIFIER_DEBUG
+    std::vector<int> m_number_stack;
+    int m_pushed_count = 0;
+#endif
 };
 //------------------------------------------------------------------------------
 class Statement_verifier : public Lazy_const_statement_visitor
@@ -542,9 +572,9 @@ public:
         collect_frame( frame );
         Proof_stack stack( frame );
 
-        for( auto statement : theorem->get_proof() )
+        for( auto step : theorem->get_proof().get_steps() )
         {
-            stack.push( statement );
+            stack.push( step );
         }
 
         if( stack.get_top() != theorem->get_expression() )

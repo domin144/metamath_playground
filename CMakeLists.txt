@@ -14,6 +14,8 @@ set( sources
     src/Named.cc
     src/Scope.cc
     src/verify.cc
+    src/Proof_step.cc
+    src/Proof_step_visitor.cc
 )
 
 set( headers
@@ -27,6 +29,8 @@ set( headers
     src/Named.h
     src/Scope.h
     src/verify.h
+    src/Proof_step.h
+    src/Proof_step_visitor.h
 )
 
 #include( src )

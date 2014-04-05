@@ -1,6 +1,8 @@
 #include <stdexcept>
 
 #include "Metamath_database_read_write.h"
+#include "Statement_visitors.h"
+#include "Proof_step.h"
 
 void read_expression( Expression &expression, Tokenizer &tokenizer,
     const Scoping_statement *scope, const std::string &terminating_token="$." )
@@ -73,8 +75,8 @@ void read_floating_hypothesis( Scoping_statement *scope, Tokenizer &tokenizer,
     tokenizer.get_token(); // consume "$."
 }
 //------------------------------------------------------------------------------
-void read_essential_hypothesis( Scoping_statement *scope, Tokenizer &tokenizer, const
-    std::string &label )
+void read_essential_hypothesis( Scoping_statement *scope, Tokenizer &tokenizer,
+    const std::string &label )
 {
     if( tokenizer.get_token() != "$e" )
         throw( std::runtime_error("assumption does not start with \"$e\"") );
@@ -97,6 +99,64 @@ void read_axiom( Scoping_statement *scope, Tokenizer &tokenizer,
     tokenizer.get_token(); // consume "$."
 }
 //------------------------------------------------------------------------------
+void read_compressed_proof( Scoping_statement *scope, Tokenizer &tokenizer,
+    Proof &proof )
+{
+    proof.set_compressed( true );
+    throw std::runtime_error( "reading of compressed proofs is not implemented "
+        "yet" );
+}
+//------------------------------------------------------------------------------
+class Proof_collector : private Lazy_const_statement_visitor
+{
+public:
+    Proof_step *new_step( const Statement *statement )
+    {
+        statement->accept( *this );
+        if( !m_step )
+            throw std::runtime_error( "invalid proof step read" );
+        return m_step;
+    }
+private:
+    Proof_step *m_step = 0;
+    void operator()( const Floating_hypothesis *hypothesis ) override
+    {
+        m_step = new Floating_hypothesis_step( hypothesis );
+    }
+    void operator()( const Essential_hypothesis *hypothesis ) override
+    {
+        m_step = new Essential_hypothesis_step( hypothesis );
+    }
+    void operator()( const Theorem *theorem ) override
+    {
+        new_assertion_step( theorem );
+    }
+    void operator()( const Axiom *axiom ) override
+    {
+        new_assertion_step( axiom );
+    }
+    void new_assertion_step( const Assertion *assertion )
+    {
+        m_step = new Assertion_step( assertion );
+    }
+};
+//------------------------------------------------------------------------------
+void read_uncompressed_proof( Scoping_statement *scope, Tokenizer &tokenizer,
+    Proof &proof )
+{
+    proof.set_compressed( false );
+    while( tokenizer.peek() != "$." )
+    {
+        auto statement = scope->get_statement_by_label( tokenizer.get_token() );
+        if( statement )
+            proof.get_steps().push_back(
+                Proof_collector().new_step( statement ) );
+        else
+            throw std::runtime_error( "statement label used in proof not found "
+                "in database" );
+    }
+}
+//------------------------------------------------------------------------------
 void read_theorem( Scoping_statement *scope, Tokenizer &tokenizer, const
     std::string &label )
 {
@@ -106,10 +166,13 @@ void read_theorem( Scoping_statement *scope, Tokenizer &tokenizer, const
     auto theorem = new Theorem( label );
     read_expression( theorem->get_expression(), tokenizer, scope, "$=" );
     tokenizer.get_token(); // consume "$="
-    while( tokenizer.peek() != "$." )
+    if( tokenizer.peek() == "(" )
     {
-        auto statement = scope->get_statement_by_label( tokenizer.get_token() );
-        theorem->get_proof().push_back( statement );
+        read_compressed_proof( scope, tokenizer, theorem->get_proof() );
+    }
+    else
+    {
+        read_uncompressed_proof( scope, tokenizer, theorem->get_proof() );
     }
     scope->add_statement( theorem );
     tokenizer.get_token(); // consume "$."
@@ -258,14 +321,93 @@ void Statement_writer::operator()( const Axiom *axiom )
     m_output_stream << "$.\n";
 }
 //------------------------------------------------------------------------------
+class Proof_writer : protected Const_proof_step_visitor
+{
+public:
+    Proof_writer( std::ostream &output_steram ) :
+        m_output_stream( output_steram )
+    { }
+    void write( const Proof &proof )
+    {
+        for( auto step : proof.get_steps() )
+        {
+            step->accept( *this );
+        }
+    }
+
+protected:
+    const Scoping_statement *m_scope;
+    std::ostream &m_output_stream;
+};
+//------------------------------------------------------------------------------
+class Compressed_proof_writer : public Proof_writer
+{
+public:
+    Compressed_proof_writer( std::ostream &output_stream ) :
+        Proof_writer( output_stream )
+    { }
+
+private:
+    /* TODO */
+};
+//------------------------------------------------------------------------------
+class Uncompressed_proof_writer : public Proof_writer
+{
+public:
+    Uncompressed_proof_writer( std::ostream &output_stream ) :
+        Proof_writer( output_stream )
+    { }
+
+private:
+    void operator()( const Assertion_step *step ) override
+    {
+        write_named_statement( step->get_assertion() );
+    }
+    void operator()( const Essential_hypothesis_step *step ) override
+    {
+        write_named_statement( step->get_hypothesis() );
+    }
+    void operator()( const Floating_hypothesis_step *step ) override
+    {
+        write_named_statement( step->get_hypothesis() );
+    }
+    void operator()( const Add_reference_step * ) override
+    {
+        throw_compressed_step();
+    }
+    void operator()( const Refer_step * ) override
+    {
+        throw_compressed_step();
+    }
+    void operator()( const Unknown_step * )
+    {
+        m_output_stream << "? ";
+    }
+    void write_named_statement( const Named_statement *statement )
+    {
+        m_output_stream << statement->get_name() << ' ';
+    }
+    void throw_compressed_step()
+    {
+        throw std::runtime_error( "compressed step found in uncompressed proof,"
+            " decompression on the fly not implemented yet" );
+    }
+};
+//------------------------------------------------------------------------------
 void Statement_writer::operator()( const Theorem *theorem )
 {
     m_output_stream << theorem->get_name() << " $p ";
     write_expression_to_file( theorem->get_expression(), m_output_stream );
     m_output_stream << "$= ";
-    for( auto proof_step : theorem->get_proof() )
+    if( theorem->get_proof().get_compressed() )
     {
-        m_output_stream << proof_step->get_name() << ' ';
+        throw std::runtime_error( "compressed proof output not implemented yet"
+            );
+    }
+    else
+    {
+        Uncompressed_proof_writer writer( m_output_stream );
+        writer.write( theorem->get_proof() );
     }
     m_output_stream << "$.\n";
 }
