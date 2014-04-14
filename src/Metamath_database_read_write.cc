@@ -99,13 +99,84 @@ void read_axiom( Scoping_statement *scope, Tokenizer &tokenizer,
     tokenizer.get_token(); // consume "$."
 }
 //------------------------------------------------------------------------------
-void read_compressed_proof( Scoping_statement *scope, Tokenizer &tokenizer,
-    Proof &proof )
+class Compressed_proof_code_extractor
 {
-    proof.set_compressed( true );
-    throw std::runtime_error( "reading of compressed proofs is not implemented "
-        "yet" );
-}
+public:
+    Compressed_proof_code_extractor( Tokenizer &tokenizer ) :
+        m_tokenizer( tokenizer )
+    { }
+    int extract_number()
+    {
+        int n = 0;
+        while( true )
+        {
+            char z = get_character();
+            if( 'A'<=z && z<='T' )
+            {
+                n = n*20 + z-'A' + 1;
+                return n;
+            }
+            else if( 'U'<=z && z<='Y' )
+            {
+                n = n*5 + z-'U' + 1;
+            }
+            else if( z=='Z' )
+            {
+                throw std::runtime_error( "error: Z found in compressed "
+                    "proof when number incomplete" );
+            }
+            else
+            {
+                throw std::runtime_error( "error: invalid character found in "
+                    "compressed proof" );
+            }
+        }
+    }
+    bool extract_reference_flag()
+    {
+        if( peek_character() == 'Z' )
+        {
+            get_character();
+            return true;
+        }
+        else
+        {
+            return false;
+        }
+    }
+    bool is_end_of_proof()
+    {
+        return peek_character() == 0;
+    }
+
+private:
+    void fill_buffer()
+    {
+        if( m_tokenizer.peek() != ")" )
+            m_buffer += m_tokenizer.get_token();
+    }
+    char peek_character()
+    {
+        if( m_buffer.empty() )
+            fill_buffer();
+        if( m_buffer.empty() )
+            return 0; // end of compressed sequence
+        else
+            return m_buffer.front();
+    }
+    char get_character()
+    {
+        char result = peek_character();
+        if( result==0 )
+            throw std::runtime_error( "read got past end of compressed "
+                "sequence" );
+        m_buffer.erase( 0 );
+        return result;
+    }
+
+    Tokenizer &m_tokenizer;
+    std::string m_buffer;
+};
 //------------------------------------------------------------------------------
 class Proof_collector : private Lazy_const_statement_visitor
 {
@@ -141,19 +212,69 @@ private:
     }
 };
 //------------------------------------------------------------------------------
+void read_compressed_proof( Scoping_statement *scope, Tokenizer &tokenizer,
+    Proof &proof )
+{
+    proof.set_compressed( true );
+    throw std::runtime_error( "reading of compressed proofs is not implemented "
+        "yet" );
+    tokenizer.get_token(); // read "("
+
+    // read referred statements
+    std::vector<const Named_statement *> referred_statements;
+    while( tokenizer.peek() != ")" )
+    {
+        auto statement = scope->get_statement_by_label( tokenizer.get_token() );
+        referred_statements.push_back( statement );
+    }
+    tokenizer.get_token(); // read ")"
+
+    int referred_expressions_count = 0;
+    const int referred_statements_count = referred_statements.size();
+    Compressed_proof_code_extractor extractor( tokenizer );
+    while( !extractor.is_end_of_proof() )
+    {
+        const int number = extractor.extract_number()-1;
+        if( number < referred_statements_count )
+        {
+            proof.get_steps().push_back( Proof_collector().new_step(
+                referred_statements[number] ) );
+        }
+        else if( number <
+            referred_statements_count + referred_expressions_count )
+        {
+            proof.get_steps().push_back( new Refer_step( number ) );
+        }
+        else
+        {
+            throw std::runtime_error(
+                "invalid number read in compressed proof" );
+        }
+        if( extractor.extract_reference_flag() )
+        {
+            proof.get_steps().push_back( new Add_reference_step() );
+        }
+    }
+    tokenizer.get_token(); // read ")"
+}
+//------------------------------------------------------------------------------
 void read_uncompressed_proof( Scoping_statement *scope, Tokenizer &tokenizer,
     Proof &proof )
 {
     proof.set_compressed( false );
     while( tokenizer.peek() != "$." )
     {
-        auto statement = scope->get_statement_by_label( tokenizer.get_token() );
-        if( statement )
+        auto name = tokenizer.get_token();
+        if( name == "?" )
+        {
+            proof.get_steps().push_back( new Unknown_step() );
+        }
+        else
+        {
+            auto statement = scope->get_statement_by_label( name );
             proof.get_steps().push_back(
                 Proof_collector().new_step( statement ) );
-        else
-            throw std::runtime_error( "statement label used in proof not found "
-                "in database" );
+        }
     }
 }
 //------------------------------------------------------------------------------
@@ -336,19 +457,76 @@ public:
     }
 
 protected:
-    const Scoping_statement *m_scope;
     std::ostream &m_output_stream;
 };
 //------------------------------------------------------------------------------
 class Compressed_proof_writer : public Proof_writer
 {
 public:
-    Compressed_proof_writer( std::ostream &output_stream ) :
-        Proof_writer( output_stream )
+    Compressed_proof_writer( std::ostream &output_stream,
+        const std::map<const Statement *, int> &map
+    ) :
+        Proof_writer( output_stream ),
+        m_statement_to_number_map( map )
     { }
 
 private:
-    /* TODO */
+    void operator()( const Assertion_step *step ) override
+    {
+        push_statement( step->get_assertion() );
+    }
+    void operator()( const Essential_hypothesis_step *step ) override
+    {
+        push_statement( step->get_hypothesis() );
+    }
+    void operator()( const Floating_hypothesis_step *step ) override
+    {
+        push_statement( step->get_hypothesis() );
+    }
+    void operator()( const Add_reference_step * ) override
+    {
+        m_output_stream << 'Z';
+    }
+    void operator()( const Refer_step *step ) override
+    {
+        const int referred_statements_count = m_statement_to_number_map.size();
+        encode_number( step->get_index() + referred_statements_count + 1 );
+    }
+    void operator()( const Unknown_step *step ) override
+    {
+        m_output_stream << '?';
+    }
+    void push_statement( const Statement *statement )
+    {
+        const auto pair = m_statement_to_number_map.find( statement );
+        if( pair == m_statement_to_number_map.end() )
+        {
+            throw std::runtime_error( "statement outside of the reference list "
+                "found when writting compressed proof" );
+        }
+        encode_number( pair->second );
+    }
+    void encode_number( int number )
+    {
+        number--;
+        if( number < 0 )
+        {
+            throw std::runtime_error( "n < 1" );
+        }
+
+        std::string output;
+        output.insert( 0, 1, 'A'+number%20 );
+        number /= 20;
+        while( number > 0 )
+        {
+            number--;
+            output.insert( 0, 1, 'U'+number%5 );
+            number /= 5;
+        }
+        m_output_stream << output;
+    }
+
+    const std::map<const Statement *, int> &m_statement_to_number_map;
 };
 //------------------------------------------------------------------------------
 class Uncompressed_proof_writer : public Proof_writer

@@ -110,6 +110,8 @@ public:
         return m_index;
     }
 private:
+    // index in the vector of referred expression, which does not include
+    // referred statements listed in brackets at start of compressed proof
     int m_index;
 };
 //------------------------------------------------------------------------------

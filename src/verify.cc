@@ -8,7 +8,7 @@
 #include "Symbol_visitors.h"
 #include "verify.h"
 
-//#define VERIFIER_DEBUG
+#define VERIFIER_DEBUG
 #ifdef VERIFIER_DEBUG
 #include <iostream>
 void print_expression( const int i, const std::string &name,
@@ -483,9 +483,6 @@ private:
     }
     void push_assertion( const Assertion *assertion )
     {
-        if( assertion->get_name() == "?" )
-            throw verification_failure( "missing proof step found" );
-
         Frame frame( assertion );
         collect_frame( frame );
 
@@ -568,6 +565,10 @@ public:
     }
     void operator()( const Theorem *theorem ) override try
     {
+#ifdef VERIFIER_DEBUG
+        std::cout << "verifying proof of theorem: " << theorem->get_name() <<
+            '\n';
+#endif
         Frame frame( theorem );
         collect_frame( frame );
         Proof_stack stack( frame );
