@@ -23,35 +23,6 @@ void print_expression( const int i, const std::string &name,
 }
 #endif
 
-class Frame
-{
-public:
-    Frame( const Assertion *assertion )
-    {
-        m_statements.push_back( assertion );
-    }
-    std::vector<const Statement *> &get_statements()
-    {
-        return m_statements;
-    }
-    const std::vector<const Statement *> &get_statements() const
-    {
-        return m_statements;
-    }
-    std::vector<const Disjoint_variable_restriction *> &get_restrictions()
-    {
-        return m_restrictions;
-    }
-    const std::vector<const Disjoint_variable_restriction *> &get_restrictions()
-        const
-    {
-        return m_restrictions;
-    }
-
-private:
-    std::vector<const Statement *> m_statements;
-    std::vector<const Disjoint_variable_restriction *> m_restrictions;
-};
 //------------------------------------------------------------------------------
 class Extended_frame_collector : public Lazy_const_statement_visitor
 {
@@ -74,7 +45,7 @@ public:
     }
 
 private:
-    void collect_hypothesis( const Statement *statment )
+    void collect_hypothesis( const Named_statement *statment )
     {
         m_extended_frame.get_statements().push_back( statment );
     }
@@ -88,7 +59,7 @@ private:
 void collect_extended_frame( Frame &frame )
 {
     Extended_frame_collector collector( frame );
-    auto statement = frame.get_statements().front();
+    const Statement *statement = frame.get_statements().front();
     while( statement )
     {
         statement->accept( collector );
@@ -438,12 +409,11 @@ void verify_disjoint_variable_restrictions(
     }
 }
 //------------------------------------------------------------------------------
-class Proof_stack :
-    private Const_proof_step_visitor
+class Proof_stack : private Const_proof_step_visitor
 {
 public:
-    Proof_stack( const Frame &frame ) :
-        m_frame( frame )
+    Proof_stack( const Frame &extended_frame ) :
+        m_extended_frame( extended_frame )
     { }
     const Expression &get_top() const
     {
@@ -471,11 +441,23 @@ private:
     }
     void operator()( const Add_reference_step * ) override
     {
-        throw std::runtime_error( "not implemented yet" );
+        if( m_stack.empty() )
+            throw verification_failure( "attepted to add reference step when "
+                "the proof stack was empty" );
+        m_referred_steps.push_back( m_stack.back() );
     }
-    void operator()( const Refer_step * ) override
+    void operator()( const Refer_step *step ) override
     {
-        throw std::runtime_error( "not implemented yet" );
+        const int available_referred_steps_count = m_referred_steps.size();
+        if( step->get_index() < available_referred_steps_count )
+            m_stack.push_back( m_referred_steps[step->get_index()] );
+        else
+            throw verification_failure( "unavailable proof step referred" );
+#ifdef VERIFIER_DEBUG
+        m_number_stack.push_back( m_pushed_count );
+        print_expression( m_pushed_count++, "recalled",
+            m_stack.back() );
+#endif
     }
     void operator()( const Unknown_step * ) override
     {
@@ -523,7 +505,7 @@ private:
     void push_hypothesis( const Named_statement *statement,
         const Expression &expression )
     {
-        auto available_statements = m_frame.get_statements();
+        auto available_statements = m_extended_frame.get_statements();
         const bool available = std::find( available_statements.begin(),
             available_statements.end(), statement ) !=
             available_statements.end();
@@ -543,8 +525,9 @@ private:
     }
 
 private:
-    const Frame &m_frame;
+    const Frame &m_extended_frame;
     std::vector<Expression> m_stack;
+    std::vector<Expression> m_referred_steps;
 #ifdef VERIFIER_DEBUG
     std::vector<int> m_number_stack;
     int m_pushed_count = 0;
@@ -569,9 +552,9 @@ public:
         std::cout << "verifying proof of theorem: " << theorem->get_name() <<
             '\n';
 #endif
-        Frame frame( theorem );
-        collect_frame( frame );
-        Proof_stack stack( frame );
+        Frame extended_frame( theorem );
+        collect_extended_frame( extended_frame );
+        Proof_stack stack( extended_frame );
 
         for( auto step : theorem->get_proof().get_steps() )
         {

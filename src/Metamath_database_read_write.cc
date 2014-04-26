@@ -1,8 +1,10 @@
 #include <stdexcept>
+#include <utility>
 
 #include "Metamath_database_read_write.h"
 #include "Statement_visitors.h"
 #include "Proof_step.h"
+#include "verify.h"
 
 void read_expression( Expression &expression, Tokenizer &tokenizer,
     const Scoping_statement *scope, const std::string &terminating_token="$." )
@@ -23,9 +25,9 @@ void read_scope( Scoping_statement *scope, Tokenizer &tokenizer,
         throw( std::runtime_error("scope does not start with \"${\"") );
 
     auto new_scope = new Scoping_statement( scope );
+    scope->add_statement( new_scope );
     while( tokenizer.peek() != "$}" )
         read_statement( new_scope, tokenizer );
-    scope->add_statement( new_scope );
     tokenizer.get_token(); // consume "$}"
 }
 //------------------------------------------------------------------------------
@@ -36,13 +38,13 @@ void read_variables( Scoping_statement *scope, Tokenizer &tokenizer, const
         throw( std::runtime_error("variables do not start with \"$v\"") );
 
     auto declaration = new Variable_declaration();
+    scope->add_statement( declaration );
     while( tokenizer.peek() != "$." )
     {
         auto variable = new Variable( tokenizer.get_token() );
         declaration->get_expression().push_back( variable );
+        scope->register_symbol( variable );
     }
-    read_expression( declaration->get_expression(), tokenizer, scope );
-    scope->add_statement( declaration );
     tokenizer.get_token(); // consume "$."
 }
 //------------------------------------------------------------------------------
@@ -51,14 +53,17 @@ void read_constants( Scoping_statement *scope, Tokenizer &tokenizer, const
 {
     if( tokenizer.get_token() != "$c" )
         throw( std::runtime_error("constants do not start with \"$c\"") );
+    if( !scope->is_top() )
+        throw std::runtime_error( "constant declaration not in top scope" );
 
     auto declaration = new Constant_declaration();
+    scope->add_statement( declaration );
     while( tokenizer.peek() != "$." )
     {
         auto constant = new Constant( tokenizer.get_token() );
         declaration->get_expression().push_back( constant );
+        scope->register_symbol( constant );
     }
-    scope->add_statement( declaration );
     tokenizer.get_token(); // consume "$."
 }
 //------------------------------------------------------------------------------
@@ -70,8 +75,8 @@ void read_floating_hypothesis( Scoping_statement *scope, Tokenizer &tokenizer,
             "\"$f\"") );
 
     auto hypothesis = new Floating_hypothesis( label );
-    read_expression( hypothesis->get_expression(), tokenizer, scope );
     scope->add_statement( hypothesis );
+    read_expression( hypothesis->get_expression(), tokenizer, scope );
     tokenizer.get_token(); // consume "$."
 }
 //------------------------------------------------------------------------------
@@ -82,8 +87,8 @@ void read_essential_hypothesis( Scoping_statement *scope, Tokenizer &tokenizer,
         throw( std::runtime_error("assumption does not start with \"$e\"") );
 
     auto hypothesis = new Essential_hypothesis( label );
-    read_expression( hypothesis->get_expression(), tokenizer, scope );
     scope->add_statement( hypothesis );
+    read_expression( hypothesis->get_expression(), tokenizer, scope );
     tokenizer.get_token(); // consume "$."
 }
 //------------------------------------------------------------------------------
@@ -94,8 +99,8 @@ void read_axiom( Scoping_statement *scope, Tokenizer &tokenizer,
         throw( std::runtime_error("axiom does not start with \"$a\"") );
 
     auto axiom = new Axiom( label );
-    read_expression( axiom->get_expression(), tokenizer, scope );
     scope->add_statement( axiom );
+    read_expression( axiom->get_expression(), tokenizer, scope );
     tokenizer.get_token(); // consume "$."
 }
 //------------------------------------------------------------------------------
@@ -152,7 +157,7 @@ public:
 private:
     void fill_buffer()
     {
-        if( m_tokenizer.peek() != ")" )
+        if( m_tokenizer.peek() != "$." )
             m_buffer += m_tokenizer.get_token();
     }
     char peek_character()
@@ -170,7 +175,7 @@ private:
         if( result==0 )
             throw std::runtime_error( "read got past end of compressed "
                 "sequence" );
-        m_buffer.erase( 0 );
+        m_buffer.erase( m_buffer.begin() );
         return result;
     }
 
@@ -213,12 +218,19 @@ private:
 };
 //------------------------------------------------------------------------------
 void read_compressed_proof( Scoping_statement *scope, Tokenizer &tokenizer,
-    Proof &proof )
+    Proof &proof, const Theorem *theorem )
 {
     proof.set_compressed( true );
-    throw std::runtime_error( "reading of compressed proofs is not implemented "
-        "yet" );
     tokenizer.get_token(); // read "("
+
+    std::vector<const Named_statement *> mandatory_hypotheses;
+    {
+        Frame frame( theorem );
+        collect_frame( frame );
+        std::swap( mandatory_hypotheses, frame.get_statements() );
+        mandatory_hypotheses.pop_back();
+    }
+    const int mandatory_hypotheses_count = mandatory_hypotheses.size();
 
     // read referred statements
     std::vector<const Named_statement *> referred_statements;
@@ -227,21 +239,28 @@ void read_compressed_proof( Scoping_statement *scope, Tokenizer &tokenizer,
         auto statement = scope->get_statement_by_label( tokenizer.get_token() );
         referred_statements.push_back( statement );
     }
+    const int referred_statements_count = referred_statements.size();
     tokenizer.get_token(); // read ")"
 
     int referred_expressions_count = 0;
-    const int referred_statements_count = referred_statements.size();
     Compressed_proof_code_extractor extractor( tokenizer );
+    Proof_collector proof_collector;
     while( !extractor.is_end_of_proof() )
     {
-        const int number = extractor.extract_number()-1;
-        if( number < referred_statements_count )
+        int number = extractor.extract_number()-1;
+        if( number < mandatory_hypotheses_count )
         {
-            proof.get_steps().push_back( Proof_collector().new_step(
+            proof.get_steps().push_back( proof_collector.new_step(
+                mandatory_hypotheses[number] ) );
+        }
+        else if( ( number -= mandatory_hypotheses_count ) <
+            referred_statements_count )
+        {
+            proof.get_steps().push_back( proof_collector.new_step(
                 referred_statements[number] ) );
         }
-        else if( number <
-            referred_statements_count + referred_expressions_count )
+        else if( ( number -= referred_statements_count ) <
+            referred_expressions_count )
         {
             proof.get_steps().push_back( new Refer_step( number ) );
         }
@@ -253,9 +272,9 @@ void read_compressed_proof( Scoping_statement *scope, Tokenizer &tokenizer,
         if( extractor.extract_reference_flag() )
         {
             proof.get_steps().push_back( new Add_reference_step() );
+            referred_expressions_count++;
         }
     }
-    tokenizer.get_token(); // read ")"
 }
 //------------------------------------------------------------------------------
 void read_uncompressed_proof( Scoping_statement *scope, Tokenizer &tokenizer,
@@ -285,18 +304,21 @@ void read_theorem( Scoping_statement *scope, Tokenizer &tokenizer, const
         throw( std::runtime_error("theorem does not start with \"$e\"") );
 
     auto theorem = new Theorem( label );
+    scope->add_statement( theorem );
     read_expression( theorem->get_expression(), tokenizer, scope, "$=" );
     tokenizer.get_token(); // consume "$="
     if( tokenizer.peek() == "(" )
     {
-        read_compressed_proof( scope, tokenizer, theorem->get_proof() );
+        read_compressed_proof( scope, tokenizer, theorem->get_proof(),
+            theorem );
     }
     else
     {
         read_uncompressed_proof( scope, tokenizer, theorem->get_proof() );
     }
-    scope->add_statement( theorem );
     tokenizer.get_token(); // consume "$."
+
+    verify( theorem );
 }
 //------------------------------------------------------------------------------
 void read_disjoint_variable_restriction( Scoping_statement *scope,
@@ -307,8 +329,8 @@ void read_disjoint_variable_restriction( Scoping_statement *scope,
             " with \"$v\"") );
 
     auto restriction = new Disjoint_variable_restriction();
-    read_expression( restriction->get_expression(), tokenizer, scope );
     scope->add_statement( restriction );
+    read_expression( restriction->get_expression(), tokenizer, scope );
     tokenizer.get_token(); // consume "$."
 }
 //------------------------------------------------------------------------------
@@ -463,8 +485,9 @@ protected:
 class Compressed_proof_writer : public Proof_writer
 {
 public:
+    typedef std::map<const Statement *, int> Map_type;
     Compressed_proof_writer( std::ostream &output_stream,
-        const std::map<const Statement *, int> &map
+        const Map_type &map
     ) :
         Proof_writer( output_stream ),
         m_statement_to_number_map( map )
@@ -526,7 +549,82 @@ private:
         m_output_stream << output;
     }
 
-    const std::map<const Statement *, int> &m_statement_to_number_map;
+    const Map_type &m_statement_to_number_map;
+};
+//------------------------------------------------------------------------------
+class Compressed_proof_reference_collector : public Const_proof_step_visitor
+{
+public:
+    typedef Compressed_proof_writer::Map_type Map_type;
+    typedef std::vector<const Named_statement *> Vector_type;
+    Compressed_proof_reference_collector( Map_type &map,
+        Vector_type &additional_statements
+    ) :
+        m_statement_to_number_map( map ),
+        m_additional_statements( additional_statements )
+    { }
+    void collect( const Proof &proof, const Theorem *theorem )
+    {
+        std::vector<const Named_statement *> mandatory_hypotheses;
+        {
+            Frame frame( theorem );
+            collect_frame( frame );
+            std::swap( mandatory_hypotheses, frame.get_statements() );
+            mandatory_hypotheses.pop_back();
+        }
+        for( auto hypothesis : mandatory_hypotheses )
+        {
+            collect_to_map( hypothesis );
+        }
+
+        for( auto step : proof.get_steps() )
+        {
+            step->accept( *this );
+        }
+    }
+
+private:
+    void operator()( const Assertion_step *step ) override
+    {
+        collect_to_vector( step->get_assertion() );
+        collect_to_map( step->get_assertion() );
+    }
+    void operator()( const Essential_hypothesis_step *step ) override
+    {
+        collect_to_vector( step->get_hypothesis() );
+        collect_to_map( step->get_hypothesis() );
+    }
+    void operator()( const Floating_hypothesis_step *step ) override
+    {
+        collect_to_vector( step->get_hypothesis() );
+        collect_to_map( step->get_hypothesis() );
+    }
+    void operator()( const Add_reference_step * ) override
+    { }
+    void operator()( const Refer_step * ) override
+    { }
+    void operator()( const Unknown_step * )
+    { }
+    void collect_to_map( const Named_statement *statement )
+    {
+        if( m_statement_to_number_map.find( statement ) ==
+            m_statement_to_number_map.end() )
+        {
+            const int n = m_statement_to_number_map.size();
+            m_statement_to_number_map.insert( std::make_pair( statement, n ) );
+        }
+    }
+    void collect_to_vector( const Named_statement *statement )
+    {
+        if( m_statement_to_number_map.find( statement ) ==
+            m_statement_to_number_map.end() )
+        {
+            m_additional_statements.push_back( statement );
+        }
+    }
+
+    Map_type &m_statement_to_number_map;
+    Vector_type &m_additional_statements;
 };
 //------------------------------------------------------------------------------
 class Uncompressed_proof_writer : public Proof_writer
@@ -579,8 +677,22 @@ void Statement_writer::operator()( const Theorem *theorem )
     m_output_stream << "$= ";
     if( theorem->get_proof().get_compressed() )
     {
-        throw std::runtime_error( "compressed proof output not implemented yet"
-            );
+        Compressed_proof_reference_collector::Map_type map;
+        Compressed_proof_reference_collector::Vector_type additional_sentences;
+        Compressed_proof_reference_collector collector( map,
+            additional_sentences );
+        collector.collect( theorem->get_proof(), theorem );
+
+        // list additional statements
+        m_output_stream << "( ";
+        for( auto sentence : additional_sentences )
+        {
+            m_output_stream << sentence->get_name() << " ";
+        }
+        m_output_stream << ") ";
+
+        Compressed_proof_writer writer( m_output_stream, map );
+        writer.write( theorem->get_proof() );
     }
     else
     {

@@ -14,6 +14,7 @@ public:
     const Symbol *get_symbol_by_label( const std::string &label ) const;
     const Named_statement *get_statement_by_label( const std::string &label );
     void add_statement( Statement *statement );
+    void register_symbol( const Symbol *symbol );
     Scoping_statement *get_parrent();
     Statement *get_first();
     const Statement *get_first() const;

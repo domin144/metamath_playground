@@ -89,19 +89,9 @@ void Scoping_statement::add_statement( Statement *statement )
         void operator()( Scoping_statement * ) override
         { }
         void operator()( Constant_declaration *declaration ) override
-        {
-            for( auto symbol : declaration->get_expression() )
-            {
-                m_scope.m_label_to_symbol[symbol->get_name()] = symbol;
-            }
-        }
+        { }
         void operator()( Variable_declaration *declaration ) override
-        {
-            for( auto symbol : declaration->get_expression() )
-            {
-                m_scope.m_label_to_symbol[symbol->get_name()] = symbol;
-            }
-        }
+        { }
         void operator()( Axiom *axiom ) override
         {
             get_top( &m_scope )->m_label_to_statement[axiom->get_name()] =
@@ -128,6 +118,20 @@ void Scoping_statement::add_statement( Statement *statement )
 
     Name_registrator registrator( *this );
     statement->accept( registrator );
+}
+//------------------------------------------------------------------------------
+void Scoping_statement::register_symbol( const Symbol *symbol )
+{
+    try
+    {
+        get_symbol_by_label( symbol->get_name() );
+        throw std::runtime_error( "symbol already present when trying to "
+            "register");
+    }
+    catch( std::runtime_error & )
+    {
+        m_label_to_symbol[symbol->get_name()] = symbol;
+    }
 }
 //------------------------------------------------------------------------------
 Scoping_statement *Scoping_statement::get_parrent()
