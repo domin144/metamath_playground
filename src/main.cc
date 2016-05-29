@@ -17,21 +17,21 @@ int main( int argc, char *argv[] ) try
     const std::string proof_name( argv[2] );
     const std::string output_db_file_name( argv[3] );
 
-    std::ifstream db_file;
-    db_file.exceptions( std::ios_base::badbit | std::ios_base::failbit |
-                        std::ios_base::eofbit );
-    db_file.open( db_file_name );
-    Tokenizer tokenizer( db_file );
-    Metamath_database db;
-    read_database_from_file( db, tokenizer );
+    try
+    {
+        std::ifstream db_file;
+        db_file.exceptions( std::ios_base::badbit | std::ios_base::failbit |
+                            std::ios_base::eofbit );
+        db_file.open( db_file_name );
+        Tokenizer tokenizer( db_file );
+        Metamath_database db;
+        read_database_from_file( db, tokenizer );
 
-    std::ofstream output_db_file( output_db_file_name );
-    write_database_to_file( db, output_db_file );
+        std::ofstream output_db_file( output_db_file_name );
+        write_database_to_file( db, output_db_file );
 
     //Proof converted_proof = convert_proof_inference( db, proof_name );
 
-    try
-    {
         verify( db );
         std::cout << "verification succeeded\n";
     }

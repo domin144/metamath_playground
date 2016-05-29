@@ -325,9 +325,10 @@ void fill_substitution_map( Substitution_map &map,
 //------------------------------------------------------------------------------
 bool are_restricted_disjoint( const Variable *variable_0,
     const Variable *variable_1,
-    const std::vector<const Disjoint_variable_restriction *> &restrictions )
+    const std::vector<const Disjoint_variable_restriction *>
+        &available_restrictions )
 {
-    for( auto restriction : restrictions )
+    for( auto restriction : available_restrictions )
     {
         const auto &expression = restriction->get_expression();
         bool found_0 =
@@ -344,9 +345,10 @@ bool are_restricted_disjoint( const Variable *variable_0,
     return false;
 }
 //------------------------------------------------------------------------------
-void verify_disjoint_variable_restriction( const Expression &expression_0,
+void verify_disjoint_disjoined_expression_pair( const Expression &expression_0,
     const Expression &expression_1,
-    const std::vector<const Disjoint_variable_restriction *> &restrictions )
+    const std::vector<const Disjoint_variable_restriction *>
+        &available_restrictions )
 {
     for( auto symbol_0 : expression_0 )
     {
@@ -366,7 +368,7 @@ void verify_disjoint_variable_restriction( const Expression &expression_0,
                 else
                 {
                     const bool result = are_restricted_disjoint( variable_0,
-                        variable_1, restrictions );
+                        variable_1, available_restrictions );
                     if( !result )
                     {
                         std::stringstream ss;
@@ -382,28 +384,50 @@ void verify_disjoint_variable_restriction( const Expression &expression_0,
     }
 }
 //------------------------------------------------------------------------------
+void verify_disjoint_variable_pair(
+    const Substitution_map &substitution_map,
+    const std::vector<const Disjoint_variable_restriction *>
+        &available_restrictions,
+    const Variable *restricted_0, const Variable *restricted_1 )
+{
+    for( auto &substitution_0 : substitution_map )
+    {
+        for( auto &substitution_1 : substitution_map )
+        {
+            auto variable_0 = substitution_0.first;
+            auto variable_1 = substitution_1.first;
+            if( variable_0 == restricted_0 &&
+                variable_1 == restricted_1 )
+            {
+                verify_disjoint_disjoined_expression_pair(
+                    substitution_0.second, substitution_1.second,
+                    available_restrictions );
+            }
+        }
+    }
+}
+//------------------------------------------------------------------------------
 void verify_disjoint_variable_restrictions(
     const Substitution_map &substitution_map,
-    const std::vector<const Disjoint_variable_restriction *> &restrictions )
+    const std::vector<const Disjoint_variable_restriction *>
+        &available_restrictions,
+    const std::vector<const Disjoint_variable_restriction *>
+        &mandatory_restrictions )
 {
-    for( auto restriction : restrictions )
+    for( auto mandatory_restriction : mandatory_restrictions )
     {
-        if( restriction->get_expression().size() > 2 )
-            throw verification_failure( "TODO: handle distinct variable "
-                "restrictions with more than two variables" );
-        for( auto &substitution_0 : substitution_map )
+        auto &expression = mandatory_restriction->get_expression();
+        for( auto i=expression.begin(); i!=expression.end(); ++i )
         {
-            for( auto &substitution_1 : substitution_map )
+            for( auto j=i+1; j!=expression.end(); ++j )
             {
-                auto variable_0 = substitution_0.first;
-                auto variable_1 = substitution_1.first;
-                if( variable_0 == restriction->get_expression().at(0) &&
-                    variable_1 == restriction->get_expression().at(1) )
-                {
-                    verify_disjoint_variable_restriction(
-                        substitution_0.second, substitution_1.second,
-                        restrictions );
-                }
+                auto variable_0 = symbol_cast<const Variable *>( *i );
+                auto variable_1 = symbol_cast<const Variable *>( *j );
+                if( !variable_0 || !variable_1 )
+                    throw verification_failure( "constants found in disjoint "
+                        "variable restriction" );
+                verify_disjoint_variable_pair( substitution_map,
+                    available_restrictions, variable_0, variable_1 );
             }
         }
     }
@@ -480,7 +504,7 @@ private:
         fill_substitution_map( substitution_map, substitution_effect,
             substitution_base );
         verify_disjoint_variable_restrictions( substitution_map,
-            frame.get_restrictions() );  
+            m_extended_frame.get_restrictions(), frame.get_restrictions() );
 #ifdef VERIFIER_DEBUG
         std::cout << "using: ";
         const int stack_size = m_stack.size();
