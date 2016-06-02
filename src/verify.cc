@@ -27,7 +27,7 @@
 #include "Symbol_visitors.h"
 #include "verify.h"
 
-#define VERIFIER_DEBUG
+//#define VERIFIER_DEBUG
 #ifdef VERIFIER_DEBUG
 #include <iostream>
 void print_expression( const int i, const std::string &name,
@@ -364,10 +364,11 @@ bool are_restricted_disjoint( const Variable *variable_0,
     return false;
 }
 //------------------------------------------------------------------------------
-void verify_disjoint_disjoined_expression_pair( const Expression &expression_0,
-    const Expression &expression_1,
-    const std::vector<const Disjoint_variable_restriction *>
-        &available_restrictions )
+void verify_disjoint_expression_pair(
+        const Expression &expression_0,
+        const Expression &expression_1,
+        const std::vector<const Disjoint_variable_restriction *>
+            &available_restrictions)
 {
     for( auto symbol_0 : expression_0 )
     {
@@ -415,12 +416,14 @@ void verify_disjoint_variable_pair(
         {
             auto variable_0 = substitution_0.first;
             auto variable_1 = substitution_1.first;
-            if( variable_0 == restricted_0 &&
-                variable_1 == restricted_1 )
+            if(
+                    variable_0 == restricted_0
+                    && variable_1 == restricted_1)
             {
-                verify_disjoint_disjoined_expression_pair(
-                    substitution_0.second, substitution_1.second,
-                    available_restrictions );
+                verify_disjoint_expression_pair(
+                            substitution_0.second,
+                            substitution_1.second,
+                            available_restrictions);
             }
         }
     }

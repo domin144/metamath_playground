@@ -25,13 +25,21 @@
 #include "Proof_step.h"
 #include "verify.h"
 
-void read_expression( Expression &expression, Tokenizer &tokenizer,
-    const Scoping_statement *scope, const std::string &terminating_token="$." )
+/*----------------------------------------------------------------------------*/
+void read_comment(Tokenizer &tokenizer);
+/*----------------------------------------------------------------------------*/
+void read_expression(
+        Expression &expression,
+        Tokenizer &tokenizer,
+        const Scoping_statement *scope,
+        const std::string &terminating_token="$.")
 {
-    while( tokenizer.peek() != terminating_token )
+    while(tokenizer.peek() != terminating_token)
     {
-        auto symbol = scope->get_symbol_by_label( tokenizer.get_token() );
-        expression.push_back( symbol );
+        if(tokenizer.peek() == "$(")
+            read_comment(tokenizer);
+        auto symbol = scope->get_symbol_by_label(tokenizer.get_token());
+        expression.push_back(symbol);
     }
 }
 //------------------------------------------------------------------------------
@@ -60,6 +68,8 @@ void read_variables( Scoping_statement *scope, Tokenizer &tokenizer, const
     scope->add_statement( declaration );
     while( tokenizer.peek() != "$." )
     {
+        if(tokenizer.peek() == "$(")
+            read_comment(tokenizer);
         auto variable = new Variable( tokenizer.get_token() );
         declaration->get_expression().push_back( variable );
         scope->register_symbol( variable );
@@ -79,6 +89,8 @@ void read_constants( Scoping_statement *scope, Tokenizer &tokenizer, const
     scope->add_statement( declaration );
     while( tokenizer.peek() != "$." )
     {
+        if(tokenizer.peek() == "$(")
+            read_comment(tokenizer);
         auto constant = new Constant( tokenizer.get_token() );
         declaration->get_expression().push_back( constant );
         scope->register_symbol( constant );
@@ -336,8 +348,6 @@ void read_theorem( Scoping_statement *scope, Tokenizer &tokenizer, const
         read_uncompressed_proof( scope, tokenizer, theorem->get_proof() );
     }
     tokenizer.get_token(); // consume "$."
-
-    verify( theorem );
 }
 //------------------------------------------------------------------------------
 void read_disjoint_variable_restriction( Scoping_statement *scope,
@@ -353,8 +363,7 @@ void read_disjoint_variable_restriction( Scoping_statement *scope,
     tokenizer.get_token(); // consume "$."
 }
 //------------------------------------------------------------------------------
-void read_comment( Scoping_statement *scope, Tokenizer &tokenizer, const
-  std::string &label )
+void read_comment(Tokenizer &tokenizer)
 {
     if( tokenizer.get_token() != "$(" )
         throw( std::runtime_error("comment does not start with \"$(\"") );
@@ -404,7 +413,7 @@ void read_statement( Scoping_statement *scope, Tokenizer &tokenizer )
     }
     else if( tokenizer.peek() == "$(" )
     {
-        read_comment( scope, tokenizer, label );
+        read_comment(tokenizer);
     }
     else
     {
@@ -546,7 +555,7 @@ private:
             throw std::runtime_error( "statement outside of the reference list "
                 "found when writting compressed proof" );
         }
-        encode_number( pair->second );
+        encode_number(pair->second + 1);
     }
     void encode_number( int number )
     {
@@ -622,7 +631,7 @@ private:
     { }
     void operator()( const Refer_step * ) override
     { }
-    void operator()( const Unknown_step * )
+    void operator()( const Unknown_step * ) override
     { }
     void collect_to_map( const Named_statement *statement )
     {
@@ -710,8 +719,9 @@ void Statement_writer::operator()( const Theorem *theorem )
         }
         m_output_stream << ") ";
 
-        Compressed_proof_writer writer( m_output_stream, map );
-        writer.write( theorem->get_proof() );
+        Compressed_proof_writer writer(m_output_stream, map);
+        writer.write(theorem->get_proof());
+        m_output_stream << ' ';
     }
     else
     {
@@ -747,7 +757,6 @@ void write_database_to_file( const Metamath_database &db, std::ostream
     &output_stream )
 {
     auto scoped_statement = db.get_top_scope()->get_first();
-    scoped_statement = scoped_statement->get_next(); // skip invalid axiom
     while( scoped_statement )
     {
         Statement_writer writer( output_stream );

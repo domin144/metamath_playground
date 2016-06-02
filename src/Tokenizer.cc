@@ -45,12 +45,7 @@ const std::string &Tokenizer::peek()
 //------------------------------------------------------------------------------
 void Tokenizer::extract_next_token()
 {
-    try
-    {
-        m_input_stream >> m_next_token;
-    }
-    catch( std::ios_base::failure )
-    {
+    m_input_stream >> m_next_token;
+    if(!m_input_stream)
         m_next_token.clear();
-    }
 }

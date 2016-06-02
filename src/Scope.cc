@@ -38,43 +38,61 @@ bool Scoping_statement::is_top() const
 {
     return !m_parrent;
 }
-//------------------------------------------------------------------------------
-const Symbol *Scoping_statement::get_symbol_by_label( const std::string &label )
-    const
+/*----------------------------------------------------------------------------*/
+const Symbol *Scoping_statement::find_symbol_by_label(
+        const std::string &label) const
 {
-    auto i = m_label_to_symbol.find( label );
-    if( i!=m_label_to_symbol.end() )
+    auto i = m_label_to_symbol.find(label);
+    if(i != m_label_to_symbol.end())
     {
         return i->second;
     }
-    else if( !is_top() )
+    else if(!is_top())
     {
-        return m_parrent->get_symbol_by_label( label );
+        return m_parrent->find_symbol_by_label(label);
     }
     else
     {
-        throw( std::runtime_error( "symbol \"" + label + "\" not found" ) );
+        return nullptr;
     }
 }
-//------------------------------------------------------------------------------
+/*----------------------------------------------------------------------------*/
+const Symbol *Scoping_statement::get_symbol_by_label(
+        const std::string &label) const
+{
+    auto symbol = find_symbol_by_label(label);
+    if(!symbol)
+        throw std::runtime_error("symbol \"" + label + "\" not found");
+    return symbol;
+}
+/*----------------------------------------------------------------------------*/
+const Named_statement *Scoping_statement::find_statement_by_label(
+    const std::string &label)
+{
+    auto i = m_label_to_statement.find(label);
+    if(i != m_label_to_statement.end())
+    {
+        return i->second;
+    }
+    else if(!is_top())
+    {
+        return m_parrent->find_statement_by_label(label);
+    }
+    else
+    {
+        return nullptr;
+    }
+}
+/*----------------------------------------------------------------------------*/
 const Named_statement *Scoping_statement::get_statement_by_label(
-    const std::string &label )
+    const std::string &label)
 {
-    auto i = m_label_to_statement.find( label );
-    if( i!=m_label_to_statement.end() )
-    {
-        return i->second;
-    }
-    else if( !is_top() )
-    {
-        return m_parrent->get_statement_by_label( label );
-    }
-    else
-    {
-        throw( std::runtime_error( "statement \"" + label + "\" not found" ) );
-    }
+    auto statement = find_statement_by_label(label);
+    if(!statement)
+        throw std::runtime_error("statement \"" + label + "\" not found");
+    return statement;
 }
-//------------------------------------------------------------------------------
+/*----------------------------------------------------------------------------*/
 namespace
 {
 Scoping_statement *get_top( Scoping_statement *scope )
@@ -138,21 +156,15 @@ void Scoping_statement::add_statement( Statement *statement )
     Name_registrator registrator( *this );
     statement->accept( registrator );
 }
-//------------------------------------------------------------------------------
-void Scoping_statement::register_symbol( const Symbol *symbol )
+/*----------------------------------------------------------------------------*/
+void Scoping_statement::register_symbol(const Symbol *symbol)
 {
-    try
-    {
-        get_symbol_by_label( symbol->get_name() );
-        throw std::runtime_error( "symbol already present when trying to "
-            "register");
-    }
-    catch( std::runtime_error & )
-    {
-        m_label_to_symbol[symbol->get_name()] = symbol;
-    }
+    if(find_symbol_by_label(symbol->get_name()))
+        throw std::runtime_error(
+                "symbol already present when trying to register");
+    m_label_to_symbol[symbol->get_name()] = symbol;
 }
-//------------------------------------------------------------------------------
+/*----------------------------------------------------------------------------*/
 Scoping_statement *Scoping_statement::get_parrent()
 {
     return m_parrent;

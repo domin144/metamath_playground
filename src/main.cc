@@ -36,28 +36,51 @@ int main( int argc, char *argv[] ) try
     const std::string proof_name( argv[2] );
     const std::string output_db_file_name( argv[3] );
 
+    Metamath_database db;
     try
     {
-        std::ifstream db_file;
-        db_file.exceptions( std::ios_base::badbit | std::ios_base::failbit |
-                            std::ios_base::eofbit );
-        db_file.open( db_file_name );
-        Tokenizer tokenizer( db_file );
-        Metamath_database db;
-        read_database_from_file( db, tokenizer );
+        std::ifstream db_file(db_file_name);
+        if(!db_file)
+            throw std::runtime_error("failed to open file " + db_file_name);
+        Tokenizer tokenizer(db_file);
+        read_database_from_file(db, tokenizer);
+    }
+    catch(std::exception &exception)
+    {
+        throw std::runtime_error(
+                    std::string("failed to read database: ")
+                    + exception.what());
+    }
 
-        std::ofstream output_db_file( output_db_file_name );
-        write_database_to_file( db, output_db_file );
+    try
+    {
+        std::ofstream output_db_file(output_db_file_name);
+        write_database_to_file(db, output_db_file);
+    }
+    catch(std::exception &exception)
+    {
+        throw std::runtime_error(
+                    std::string("failed to write database: ")
+                    + exception.what());
+    }
 
-    //Proof converted_proof = convert_proof_inference( db, proof_name );
-
-        verify( db );
+    try
+    {
+        verify(db);
         std::cout << "verification succeeded\n";
     }
     catch( const verification_failure &e )
     {
         std::cout << "verification failed: " << e.what() << "\n";
     }
+    catch(std::exception &exception)
+    {
+        throw std::runtime_error(
+                    std::string("error while verifying the database: ")
+                    + exception.what());
+    }
+
+//Proof converted_proof = convert_proof_inference( db, proof_name );
 
     return 0;
 }
